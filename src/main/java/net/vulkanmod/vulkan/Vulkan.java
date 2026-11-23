@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toSet;
 import static net.vulkanmod.vulkan.queue.Queue.getQueueFamilies;
 import static net.vulkanmod.vulkan.util.VUtil.asPointerBuffer;
-import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
-import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
+import static org.lwjgl.sdl.SDLVulkan.SDL_Vulkan_CreateSurface;
+import static org.lwjgl.sdl.SDLVulkan.SDL_Vulkan_GetInstanceExtensions;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.util.vma.Vma.vmaCreateAllocator;
@@ -106,8 +106,9 @@ public class Vulkan {
         try (MemoryStack stack = stackPush()) {
             LongBuffer pSurface = stack.longs(VK_NULL_HANDLE);
 
-            checkResult(glfwCreateWindowSurface(Instance.instance, window, null, pSurface),
-                        "Failed to create window surface");
+            if (!SDL_Vulkan_CreateSurface(window, Instance.instance, null, pSurface)) {
+                throw new RuntimeException("Failed to create SDL Vulkan window surface");
+            }
 
             surface = pSurface.get(0);
         }
@@ -292,7 +293,10 @@ public class Vulkan {
         }
 
         private static PointerBuffer getRequiredInstanceExtensions() {
-            PointerBuffer glfwExtensions = glfwGetRequiredInstanceExtensions();
+            PointerBuffer glfwExtensions = SDL_Vulkan_GetInstanceExtensions();
+            if (glfwExtensions == null) {
+                throw new RuntimeException("Failed to get SDL Vulkan instance extensions");
+            }
 
             List<String> otherExtensions = new ArrayList<>();
             if (Util.getPlatform() == Util.OS.OSX && instanceExtensions.contains(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {

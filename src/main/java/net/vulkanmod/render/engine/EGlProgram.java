@@ -2,7 +2,7 @@ package net.vulkanmod.render.engine;
 
 import com.google.common.collect.Sets;
 import com.mojang.blaze3d.opengl.*;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.logging.LogUtils;
 import net.vulkanmod.vulkan.shader.Pipeline;

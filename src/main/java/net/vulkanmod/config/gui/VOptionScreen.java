@@ -23,7 +23,7 @@ import net.vulkanmod.config.gui.widget.*;
 import net.vulkanmod.config.option.*;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.vulkanmod.vulkan.util.ColorUtil;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -463,7 +463,7 @@ public class VOptionScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent keyEvent) {
-        if (keyEvent.hasControlDown() && keyEvent.key() == GLFW.GLFW_KEY_L) {
+        if (keyEvent.hasControlDown() && keyEvent.key() == InputConstants.KEY_L) {
             this.setFocused(searchField);
             searchField.setFocused(true);
             searchField.setSelected(true);
@@ -471,7 +471,7 @@ public class VOptionScreen extends Screen {
             return true;
         }
 
-        if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE && this.isSearchActive) {
+        if (keyEvent.key() == InputConstants.KEY_ESCAPE && this.isSearchActive) {
             this.isSearchActive = false;
             this.searchField.setInput("");
             this.searchField.setFocused(false);
@@ -482,7 +482,7 @@ public class VOptionScreen extends Screen {
 
 
         if (!this.searchField.focused
-                && keyEvent.key() == GLFW.GLFW_KEY_P
+                && keyEvent.key() == InputConstants.KEY_P
                 && keyEvent.hasShiftDown()) {
             Minecraft.getInstance().setScreen(new VideoSettingsScreen(this, Minecraft.getInstance(), Minecraft.getInstance().options));
 

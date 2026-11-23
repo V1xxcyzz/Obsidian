@@ -1,6 +1,6 @@
 package net.vulkanmod.render.vertex;
 
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import net.vulkanmod.render.util.SortUtil;
 import org.lwjgl.system.MemoryUtil;
 

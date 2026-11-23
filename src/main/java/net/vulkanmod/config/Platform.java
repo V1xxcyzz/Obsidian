@@ -2,13 +2,19 @@ package net.vulkanmod.config;
 
 import net.minecraft.util.Util;
 import org.apache.commons.lang3.SystemUtils;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLHints;
+import org.lwjgl.sdl.SDLVersion;
 
 import static net.vulkanmod.Initializer.CONFIG;
 import static net.vulkanmod.Initializer.LOGGER;
-import static org.lwjgl.glfw.GLFW.*;
 
 public abstract class Platform {
+    public static final int PLAT_ANY = 0;
+    public static final int PLAT_WIN32 = 1;
+    public static final int PLAT_COCOA = 2;
+    public static final int PLAT_WAYLAND = 3;
+    public static final int PLAT_X11 = 4;
+
     public static final Util.OS OS = Util.getPlatform();
     private static int activePlat;
     private static String activeDE;
@@ -17,47 +23,40 @@ public abstract class Platform {
         activePlat = getSupportedPlat();
         activeDE = determineDE();
 
-        GLFW.glfwInitHint(GLFW_PLATFORM, activePlat);
+        if (activePlat == PLAT_WAYLAND) {
+            SDLHints.SDL_SetHint("SDL_VIDEO_DRIVER", "wayland,x11");
+        } else if (activePlat == PLAT_X11) {
+            SDLHints.SDL_SetHint("SDL_VIDEO_DRIVER", "x11");
+        }
         LOGGER.info("Selecting Platform: {}", getStringFromPlat());
-        LOGGER.info("GLFW: {}", GLFW.glfwGetVersionString());
-        GLFW.glfwInit();
+        LOGGER.info("SDL: {}", SDLVersion.SDL_GetVersion());
     }
 
-    // Actually detect the currently active Display Server (if both Wayland and X11 are present on the system and/or GLFW is compiled to support both)
     private static int determineLinuxDisplayServer() {
-        // Return Null platform if not on Linux (i.e. no X11 or Wayland)
         String xdgSessionType = System.getenv("XDG_SESSION_TYPE");
-        if (xdgSessionType == null) return GLFW_ANY_PLATFORM; // Likely Android
+        if (xdgSessionType == null) return PLAT_ANY;
         return switch (xdgSessionType) {
-            case "wayland" -> {
-                if (CONFIG.useWayland) {
-                    yield GLFW_PLATFORM_WAYLAND;
-                }
-                else {
-                    yield GLFW_PLATFORM_X11;
-                }
-            }
-            case "x11" -> GLFW_PLATFORM_X11;
-            default -> GLFW_ANY_PLATFORM; //Either unknown Platform or Display Server
+            case "wayland" -> CONFIG.useWayland ? PLAT_WAYLAND : PLAT_X11;
+            case "x11" -> PLAT_X11;
+            default -> PLAT_ANY;
         };
     }
 
     private static int getSupportedPlat() {
-        //Switch statement would be ideal, but couldn't find a good way of implementing it, so fell back to basic if statements/branches
-        if (SystemUtils.IS_OS_WINDOWS) return GLFW_PLATFORM_WIN32;
-        if (SystemUtils.IS_OS_MAC_OSX) return GLFW_PLATFORM_COCOA;
-        if (SystemUtils.IS_OS_LINUX) return determineLinuxDisplayServer(); //Linux Or Android
+        if (SystemUtils.IS_OS_WINDOWS) return PLAT_WIN32;
+        if (SystemUtils.IS_OS_MAC_OSX) return PLAT_COCOA;
+        if (SystemUtils.IS_OS_LINUX) return determineLinuxDisplayServer();
 
-        return GLFW_ANY_PLATFORM; //Unknown platform
+        return PLAT_ANY;
     }
 
     private static String getStringFromPlat() {
         return switch (Platform.activePlat) {
-            case GLFW_PLATFORM_WIN32 -> "WIN32";
-            case GLFW_PLATFORM_WAYLAND -> "WAYLAND";
-            case GLFW_PLATFORM_X11 -> "X11";
-            case GLFW_PLATFORM_COCOA -> "MACOS";
-            case GLFW_ANY_PLATFORM -> "ANDROID";
+            case PLAT_WIN32 -> "WIN32";
+            case PLAT_WAYLAND -> "WAYLAND";
+            case PLAT_X11 -> "X11";
+            case PLAT_COCOA -> "MACOS";
+            case PLAT_ANY -> "ANDROID";
             default -> throw new IllegalStateException("Unexpected value: " + Platform.activePlat);
         };
     }
@@ -73,7 +72,7 @@ public abstract class Platform {
     }
 
     public static boolean isWindows() {
-        return OS == Util.OS.LINUX;
+        return OS == Util.OS.WINDOWS;
     }
 
     public static boolean isLinux() {
@@ -89,19 +88,17 @@ public abstract class Platform {
     }
 
     public static boolean isAndroid() {
-        return activePlat == GLFW_ANY_PLATFORM;
+        return activePlat == PLAT_ANY;
     }
 
-    //Allows platform specific checks to be handled
     public static boolean isWayLand() {
-        return activePlat == GLFW_PLATFORM_WAYLAND;
+        return activePlat == PLAT_WAYLAND;
     }
 
     public static boolean isX11() {
-        return activePlat == GLFW_PLATFORM_X11;
+        return activePlat == PLAT_X11;
     }
 
-    //Desktop Environment Names: https://wiki.archlinux.org/title/Xdg-utils#Usage
     public static boolean isGnome() {
         return activeDE.contains("gnome");
     }
