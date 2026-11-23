@@ -122,7 +122,7 @@ public class TerrainBuilder {
 
         int indexCount = vertexCount / 4 * 6;
 
-        VertexFormat.IndexType indexType = VertexFormat.IndexType.least(indexCount);
+        com.mojang.renderpearl.api.pipeline.IndexType indexType = com.mojang.renderpearl.api.pipeline.IndexType.least(indexCount);
         boolean sequentialIndexing;
 
         // TODO sorting
@@ -179,7 +179,7 @@ public class TerrainBuilder {
     public void setBlockAttributes(BlockState blockState) {
     }
 
-    public record DrawState(int vertexSize, int indexCount, VertexFormat.IndexType indexType,
+    public record DrawState(int vertexSize, int indexCount, com.mojang.renderpearl.api.pipeline.IndexType indexType,
                             boolean indexOnly, boolean sequentialIndex) {
 
         private int indexBufferSize() {
@@ -190,7 +190,7 @@ public class TerrainBuilder {
             return this.indexCount;
         }
 
-        public VertexFormat.IndexType indexType() {
+        public com.mojang.renderpearl.api.pipeline.IndexType indexType() {
             return this.indexType;
         }
 

@@ -1,25 +1,29 @@
 package net.vulkanmod.mixin.chunk;
 
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
-import com.mojang.renderpearl.api.textures.GpuSampler;
 import com.mojang.blaze3d.vertex.PoseStack;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
 import net.minecraft.client.Camera;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
+import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayerGroup;
 import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
-import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.client.resources.model.ModelManager;
+import net.minecraft.client.resources.model.sprite.AtlasManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.BlockDestructionProgress;
-import net.minecraft.world.level.ChunkPos;
 import net.vulkanmod.render.chunk.WorldRenderer;
 import net.vulkanmod.render.profiling.Profiler;
 import net.vulkanmod.render.vertex.TerrainRenderType;
@@ -32,11 +36,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.SortedSet;
-
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererMixin {
-    @Shadow @Final private Long2ObjectMap<SortedSet<BlockDestructionProgress>> destructionProgress;
+
+    @Shadow @Final private EntityRenderDispatcher entityRenderDispatcher;
+    @Shadow @Final private BlockEntityRenderDispatcher blockEntityRenderDispatcher;
+    @Shadow @Final private RenderBuffers renderBuffers;
+    @Shadow @Final private LevelRenderState levelRenderState;
+    @Shadow @Final private FeatureRenderDispatcher featureRenderDispatcher;
+    @Shadow @Final private SubmitNodeStorage submitNodeStorage;
 
     @Unique private WorldRenderer worldRenderer;
 
@@ -44,37 +52,23 @@ public abstract class LevelRendererMixin {
     @Unique Matrix4f modelView, projection;
 
     @Inject(method = "<init>", at = @At("RETURN"))
-    private void init(Minecraft minecraft, EntityRenderDispatcher entityRenderDispatcher,
-                      BlockEntityRenderDispatcher blockEntityRenderDispatcher, RenderBuffers renderBuffers,
-                      LevelRenderState levelRenderState, FeatureRenderDispatcher featureRenderDispatcher,
-                      CallbackInfo ci) {
-        this.worldRenderer = WorldRenderer.init(entityRenderDispatcher, blockEntityRenderDispatcher, renderBuffers, levelRenderState, featureRenderDispatcher);
+    private void init(EntityRenderDispatcher entityRenderDispatcher, BlockEntityRenderDispatcher blockEntityRenderDispatcher,
+                      ModelManager modelManager, TextureManager textureManager, AtlasManager atlasManager,
+                      ShaderManager shaderManager, GameRenderer gameRenderer, int i, int j, CallbackInfo ci) {
+        this.worldRenderer = WorldRenderer.init(this.entityRenderDispatcher, this.blockEntityRenderDispatcher, this.renderBuffers, this.levelRenderState, this.featureRenderDispatcher);
     }
 
-    @Inject(method = "setLevel", at = @At("RETURN"))
-    private void setLevel(ClientLevel clientLevel, CallbackInfo ci) {
-        this.worldRenderer.setLevel(clientLevel);
-    }
-
-    @Inject(method = "allChanged", at = @At("RETURN"))
-    private void onAllChanged(CallbackInfo ci) {
-        this.worldRenderer.allChanged();
-    }
-
-    @Inject(method = "extractVisibleBlockEntities", at = @At("HEAD"), cancellable = true)
-    private void onExtractVisibleBlockEntities(Camera camera, float partialTick, LevelRenderState levelRenderState,
-                                               CallbackInfo ci) {
-        this.worldRenderer.setPartialTick(partialTick);
-
+    @Inject(method = "invalidateCompiledGeometry", at = @At("HEAD"), cancellable = true)
+    private void skipInvalidateCompiledGeometry(ClientLevel clientLevel, Options options, Camera camera, BlockColors blockColors, CallbackInfo ci) {
         ci.cancel();
     }
 
-    @Inject(method = "submitBlockEntities", at = @At(value = "RETURN"), cancellable = true)
+    @Inject(method = "submitBlockEntities", at = @At("RETURN"))
     private void onSubmitBlockEntities(PoseStack poseStack, LevelRenderState levelRenderState,
-                                     SubmitNodeStorage submitNodeStorage, CallbackInfo ci) {
-        this.worldRenderer.renderBlockEntities(poseStack, levelRenderState, submitNodeStorage, this.destructionProgress);
-
-        ci.cancel();
+                                       SubmitNodeCollector submitNodeCollector, CallbackInfo ci) {
+        ClientLevel level = Minecraft.getInstance().level;
+        this.worldRenderer.renderBlockEntities(poseStack, levelRenderState, this.submitNodeStorage,
+                level != null ? level.destructionProgress() : Long2ObjectMaps.emptyMap());
     }
 
     /**
@@ -82,47 +76,60 @@ public abstract class LevelRendererMixin {
      * @reason
      */
     @Overwrite
-    private void cullTerrain(Camera camera, Frustum frustum, boolean spectator) {
-        // TODO: port capture frustum
-        this.worldRenderer.setupRenderer(camera, frustum, false, spectator);
-    }
-
-    /**
-     * @author
-     * @reason
-     */
-    @Overwrite
-    public boolean isSectionCompiledAndVisible(BlockPos blockPos) {
+    public boolean isSectionCompiledAndVisible(BlockPos blockPos, long l) {
         return this.worldRenderer.isSectionCompiled(blockPos);
     }
 
-    @Inject(method = "renderLevel", at = @At("HEAD"))
-    private void updateMatrices(GraphicsResourceAllocator graphicsResourceAllocator, DeltaTracker deltaTracker,
-                                boolean bl, Camera camera, Matrix4f modelView, Matrix4f projection, Matrix4f matrix4f,
-                                GpuBufferSlice gpuBufferSlice, Vector4f vector4f, boolean bl2, CallbackInfo ci) {
-        this.modelView = modelView;
-        this.projection = projection;
+    @Inject(method = "render", at = @At("HEAD"))
+    private void updateMatrices(GraphicsResourceAllocator graphicsResourceAllocator, boolean bl,
+                                CameraRenderState cameraRenderState, GpuBufferSlice gpuBufferSlice,
+                                Vector4f vector4f, boolean bl2, boolean bl3, CallbackInfo ci) {
+        this.modelView = new Matrix4f(cameraRenderState.viewRotationMatrix);
+        this.projection = new Matrix4f(cameraRenderState.projectionMatrix);
+        this.camX = cameraRenderState.pos.x();
+        this.camY = cameraRenderState.pos.y();
+        this.camZ = cameraRenderState.pos.z();
     }
 
+    /**
+     * @author
+     * @reason
+     */
     @Overwrite
-    private ChunkSectionsToRender prepareChunkRenders(Matrix4fc matrix4fc, double camX, double camY, double camZ) {
-        this.camX = camX;
-        this.camY = camY;
-        this.camZ = camZ;
-
+    public ChunkSectionsToRender prepareChunkRenders(Matrix4fc matrix4fc, boolean bl) {
         return null;
     }
 
-    @Redirect(method = "method_62214", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;renderGroup(Lnet/minecraft/client/renderer/chunk/ChunkSectionLayerGroup;Lcom/mojang/blaze3d/textures/GpuSampler;)V"))
-    private void renderSectionLayer(ChunkSectionsToRender instance, ChunkSectionLayerGroup chunkSectionLayerGroup, GpuSampler gpuSampler) {
+    /**
+     * @author
+     * @reason
+     */
+    @Overwrite
+    public ChunkSectionsToRender prepareChunkRendersIndirect(Matrix4fc matrix4fc, boolean bl) {
+        return null;
+    }
+
+    /**
+     * @author
+     * @reason
+     */
+    @Overwrite
+    private void compileSections(CameraRenderState cameraRenderState) {
+        this.worldRenderer.uploadSections();
+    }
+
+    @Redirect(method = {"executeSolid", "executeClassicTransparency"},
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;renderGroup(Lnet/minecraft/client/renderer/chunk/ChunkSectionLayerGroup;Lcom/mojang/renderpearl/api/commands/RenderPass;Lcom/mojang/renderpearl/api/textures/GpuSampler;Lcom/mojang/renderpearl/api/textures/GpuTextureView;Z)V"))
+    private void renderSectionLayer(ChunkSectionsToRender instance, ChunkSectionLayerGroup chunkSectionLayerGroup,
+                                    RenderPass renderPass, GpuSampler gpuSampler, GpuTextureView gpuTextureView, boolean wireframe) {
         if (chunkSectionLayerGroup == ChunkSectionLayerGroup.OPAQUE) {
             Profiler profiler = Profiler.getMainProfiler();
             profiler.push("Opaque_terrain");
 
             this.worldRenderer.renderSectionLayer(TerrainRenderType.SOLID, camX, camY, camZ, modelView, projection);
             this.worldRenderer.renderSectionLayer(TerrainRenderType.CUTOUT, camX, camY, camZ, modelView, projection);
-        }
-        else if (chunkSectionLayerGroup == ChunkSectionLayerGroup.TRANSLUCENT) {
+        } else if (chunkSectionLayerGroup == ChunkSectionLayerGroup.TRANSLUCENT) {
             Profiler profiler = Profiler.getMainProfiler();
             profiler.pop();
             profiler.push("Translucent_terrain");
@@ -131,33 +138,6 @@ public abstract class LevelRendererMixin {
 
             profiler.pop();
         }
-
-    }
-
-    /**
-     * @author
-     * @reason
-     */
-    @Overwrite
-    public void onChunkReadyToRender(ChunkPos chunkPos) {
-    }
-
-    /**
-     * @author
-     * @reason
-     */
-    @Overwrite
-    private void setSectionDirty(int x, int y, int z, boolean flag) {
-        this.worldRenderer.setSectionDirty(x, y, z, flag);
-    }
-
-    /**
-     * @author
-     * @reason
-     */
-    @Overwrite
-    public String getSectionStatistics() {
-        return this.worldRenderer.getChunkStatistics();
     }
 
     /**
@@ -167,20 +147,6 @@ public abstract class LevelRendererMixin {
     @Overwrite
     public boolean hasRenderedAllSections() {
         return !this.worldRenderer.graphNeedsUpdate() && this.worldRenderer.getTaskDispatcher().isIdle();
-    }
-
-    /**
-     * @author
-     * @reason
-     */
-    @Overwrite
-    public int countRenderedSections() {
-        return this.worldRenderer.getVisibleSectionsCount();
-    }
-
-    @Redirect(method = "addWeatherPass", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;getDepthFar()F"))
-    private float getRenderDistanceZFar(GameRenderer instance) {
-        return net.minecraft.client.Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0F * 4.0F;
     }
 
 }

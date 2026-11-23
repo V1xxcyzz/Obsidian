@@ -1,76 +1,121 @@
 package net.vulkanmod.render.engine;
 
+import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
-import com.mojang.blaze3d.opengl.*;
-import com.mojang.renderpearl.api.pipeline.CompiledRenderPipeline;
-import com.mojang.renderpearl.api.pipeline.RenderPipeline;
-import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
-import com.mojang.renderpearl.api.pipeline.ShaderSource;
-import com.mojang.renderpearl.api.pipeline.ShaderType;
+import com.mojang.renderpearl.api.commands.GpuQueryPool;
+import com.mojang.renderpearl.api.device.DeviceFeatures;
+import com.mojang.renderpearl.api.device.DeviceInfo;
+import com.mojang.renderpearl.api.device.DeviceLimits;
+import com.mojang.renderpearl.api.device.DeviceType;
+import com.mojang.renderpearl.api.device.GpuDebugOptions;
+import com.mojang.renderpearl.api.device.HintsAndWorkarounds;
+import com.mojang.renderpearl.api.textures.AddressMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.GpuSampler;
+import com.mojang.renderpearl.api.textures.GpuTexture;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import com.mojang.renderpearl.backend.api.BackendRenderPipeline;
 import com.mojang.renderpearl.backend.api.CommandEncoderBackend;
 import com.mojang.renderpearl.backend.api.GpuDeviceBackend;
-import com.mojang.renderpearl.api.textures.*;
-import com.mojang.logging.LogUtils;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.Environment;
-import net.minecraft.client.renderer.ShaderDefines;
-import net.minecraft.resources.Identifier;
+import com.mojang.renderpearl.backend.api.GpuSurfaceBackend;
 import net.vulkanmod.gl.VkGlTexture;
-import net.vulkanmod.interfaces.shader.ExtendedRenderPipeline;
-import net.vulkanmod.render.shader.ShaderLoadUtil;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.vulkanmod.vulkan.Vulkan;
+import net.vulkanmod.vulkan.device.Device;
 import net.vulkanmod.vulkan.device.DeviceManager;
-import net.vulkanmod.vulkan.shader.GraphicsPipeline;
-import net.vulkanmod.vulkan.shader.Pipeline;
-import net.vulkanmod.vulkan.shader.SpirvCompiler;
-import net.vulkanmod.vulkan.shader.converter.*;
-import net.vulkanmod.vulkan.shader.descriptor.ImageDescriptor;
-import net.vulkanmod.vulkan.shader.descriptor.UBO;
 import net.vulkanmod.vulkan.texture.VulkanImage;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
-import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.function.BiFunction;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.OptionalDouble;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-@SuppressWarnings("NullableProblems")
 public class VkGpuDevice implements GpuDeviceBackend {
-    private static final Logger LOGGER = LogUtils.getLogger();
-
-    private static final ShaderDefines GLOBAL_DEFINES = ShaderDefines.builder()
-                                                                     .define("gl_VertexID", "gl_VertexIndex")
-                                                                     .define("gl_InstanceID", "gl_InstanceIndex")
-                                                                     .define("sample", "sample1")
-                                                                     .define("sampler", "sampler1")
-                                                                     .build();
+    private static VkGpuDevice INSTANCE;
 
     private final VkCommandEncoder encoder;
     private final VkDebugLabel debugLabels;
     private final int maxSupportedTextureSize;
     private final int uniformOffsetAlignment;
-    private final ShaderSource defaultShaderSource;
-    private final Map<RenderPipeline, GlRenderPipeline> pipelineCache = new IdentityHashMap<>();
-    private final Map<ShaderCompilationKey, GlShaderModule> shaderCache = new HashMap<>();
     private final Set<String> enabledExtensions = new HashSet<>();
+    private final DeviceInfo deviceInfo;
 
-    private final Map<ShaderCompilationKey, String> shaderSrcCache = new HashMap<>();
-
-    public VkGpuDevice(long l, int i, boolean bl, ShaderSource shaderSource, boolean bl2) {
-        this.debugLabels = VkDebugLabel.create(bl2, this.enabledExtensions);
+    public VkGpuDevice(long windowHandle, GpuDebugOptions options) {
+        INSTANCE = this;
+        this.debugLabels = VkDebugLabel.create(options != null && options.useLabels(), this.enabledExtensions);
         this.maxSupportedTextureSize = VRenderSystem.maxSupportedTextureSize();
         this.uniformOffsetAlignment = (int) DeviceManager.deviceProperties().limits().minUniformBufferOffsetAlignment();
-        this.defaultShaderSource = shaderSource;
-
         this.encoder = new VkCommandEncoder(this);
+
+        Device dev = Vulkan.getDevice();
+        DeviceLimits limits = new DeviceLimits(
+                Math.max(1, (int) DeviceManager.deviceProperties().limits().maxSamplerAnisotropy()),
+                Math.max(1, this.uniformOffsetAlignment),
+                this.maxSupportedTextureSize,
+                256L * 1024L * 1024L,
+                64,
+                Math.max(1, DeviceManager.deviceProperties().limits().maxColorAttachments()),
+                Math.max(1, DeviceManager.deviceProperties().limits().maxDrawIndirectCount())
+        );
+        DeviceFeatures features = new DeviceFeatures(
+                true,   // wireframeFillMode
+                true,   // shaderDrawParameters
+                false,  // multiDrawDirectInterleaved
+                false,  // multiDrawDirectSeparate
+                dev.availableFeatures.features().multiDrawIndirect(),
+                dev.availableFeatures.features().multiDrawIndirect(),
+                true,   // nonZeroFirstInstance
+                true    // persistentMapping
+        );
+        HintsAndWorkarounds hints = new HintsAndWorkarounds(false, false, false, false);
+        DeviceType type = switch (dev.deviceType) {
+            case VK10.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> DeviceType.INTEGRATED;
+            case VK10.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU -> DeviceType.DISCRETE;
+            case VK10.VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU -> DeviceType.VIRTUAL;
+            case VK10.VK_PHYSICAL_DEVICE_TYPE_CPU -> DeviceType.CPU;
+            default -> DeviceType.OTHER;
+        };
+
+        this.deviceInfo = new DeviceInfo(
+                dev.deviceName,
+                dev.vendorIdString,
+                "Vulkan " + dev.vkVersion + " (Driver " + dev.driverVersion + ")",
+                true,
+                "Obsidian Vulkan",
+                Math.max(1.0f, DeviceManager.deviceProperties().limits().timestampPeriod()),
+                limits,
+                features,
+                this.enabledExtensions,
+                hints,
+                type
+        );
+    }
+
+    public static VkGpuDevice getInstance() {
+        return INSTANCE;
     }
 
     public VkDebugLabel debugLabels() {
         return this.debugLabels;
+    }
+
+    public VkCommandEncoder getEncoder() {
+        return this.encoder;
+    }
+
+    public int getUniformOffsetAlignment() {
+        return this.uniformOffsetAlignment;
+    }
+
+    @Override
+    public GpuSurfaceBackend createSurface(long windowHandle, BooleanSupplier shouldClose) {
+        return new VkGpuSurface(this, windowHandle, shouldClose);
     }
 
     @Override
@@ -79,125 +124,87 @@ public class VkGpuDevice implements GpuDeviceBackend {
     }
 
     @Override
-    public boolean isZZeroToOne() {
-        return true;
+    public GpuSampler createSampler(AddressMode addressModeU, AddressMode addressModeV, FilterMode minFilter,
+                                    FilterMode magFilter, int maxAnisotropy, OptionalDouble maxLod) {
+        return new VkSampler(addressModeU, addressModeV, minFilter, magFilter, maxAnisotropy, maxLod);
     }
 
     @Override
-    public void setVsync(boolean vsync) {
-        net.vulkanmod.vulkan.Renderer.scheduleSwapChainUpdate();
-    }
-
-    @Override
-    public void presentFrame() {
-    }
-
-    public VkCommandEncoder getEncoder() {
-        return this.encoder;
-    }
-
-    @Override
-    public GpuSampler createSampler(AddressMode addressMode, AddressMode addressMode2, FilterMode filterMode,
-                                    FilterMode filterMode2, int maxAnisotropy, OptionalDouble maxLod) {
-        return new VkSampler(addressMode, addressMode2, filterMode, filterMode2, maxAnisotropy, maxLod);
-    }
-
-    @Override
-    public GpuTexture createTexture(@Nullable Supplier<String> supplier, int usage, TextureFormat textureFormat, int width, int height, int layers, int mipLevels) {
-        return this.createTexture(this.debugLabels.exists() && supplier != null ? supplier.get() : null, usage, textureFormat, width, height, layers, mipLevels);
-    }
-
-    @Override
-    public GpuTexture createTexture(@Nullable String string, int usage, TextureFormat textureFormat, int width, int height, int layers, int mipLevels) {
+    public GpuTexture createTexture(@Nullable String label, int usage, GpuFormat format, int width, int height, int depthOrLayers, int mipLevels) {
         if (mipLevels < 1) {
             throw new IllegalArgumentException("mipLevels must be at least 1");
-        } else {
-            int id = VkGlTexture.genTextureId();
-            if (string == null) {
-                string = String.valueOf(id);
-            }
-
-            int format = VkGpuTexture.vkFormat(textureFormat);
-            int viewType = VkGpuTexture.vkImageViewType(usage);
-            boolean depthFormat = VulkanImage.isDepthFormat(format);
-            int attachmentUsage = depthFormat ? VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-            VulkanImage texture = VulkanImage.builder(width, height)
-                                             .setName(string)
-                                             .setFormat(format)
-                                             .setArrayLayers(layers)
-                                             .setMipLevels(mipLevels)
-                                             .addUsage(attachmentUsage)
-                                             .setViewType(viewType)
-                                             .createVulkanImage();
-
-            VkGlTexture vGlTexture = VkGlTexture.getTexture(id);
-            vGlTexture.setVulkanImage(texture);
-            VkGlTexture.bindTexture(id);
-
-            VkGpuTexture glTexture = new VkGpuTexture(usage, string, textureFormat, width, height, layers, mipLevels, id, vGlTexture);
-            this.debugLabels.applyLabel(glTexture);
-            return glTexture;
         }
+        int id = VkGlTexture.genTextureId();
+        if (label == null) {
+            label = String.valueOf(id);
+        }
+
+        int vkFormat = VkGpuTexture.vkFormat(format);
+        int viewType = VkGpuTexture.vkImageViewType(usage);
+        boolean depthFormat = VulkanImage.isDepthFormat(vkFormat);
+        int attachmentUsage = depthFormat ? VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+        VulkanImage texture = VulkanImage.builder(width, height)
+                .setName(label)
+                .setFormat(vkFormat)
+                .setArrayLayers(depthOrLayers)
+                .setMipLevels(mipLevels)
+                .addUsage(attachmentUsage)
+                .setViewType(viewType)
+                .createVulkanImage();
+
+        VkGlTexture vGlTexture = VkGlTexture.getTexture(id);
+        vGlTexture.setVulkanImage(texture);
+        VkGlTexture.bindTexture(id);
+
+        VkGpuTexture vkTexture = new VkGpuTexture(usage, label, format, width, height, depthOrLayers, mipLevels, id, vGlTexture);
+        this.debugLabels.applyLabel(vkTexture);
+        return vkTexture;
     }
 
     public VkGpuTexture gpuTextureFromVulkanImage(VulkanImage image) {
         int id = VkGlTexture.genTextureId();
         VkGlTexture glTexture = VkGlTexture.getTexture(id);
         glTexture.setVulkanImage(image);
-        TextureFormat textureFormat = VkGpuTexture.textureFormat(image.format);
-        VkGpuTexture gpuTexture = new VkGpuTexture(0, image.name, textureFormat, image.width, image.height, 1, image.mipLevels, id, glTexture);
+        GpuFormat gpuFormat = VkGpuTexture.textureFormat(image.format);
+        VkGpuTexture gpuTexture = new VkGpuTexture(0, image.name, gpuFormat, image.width, image.height, 1, image.mipLevels, id, glTexture);
         this.debugLabels.applyLabel(gpuTexture);
         return gpuTexture;
     }
 
-    @Override
     public GpuTextureView createTextureView(GpuTexture gpuTexture) {
         return this.createTextureView(gpuTexture, 0, gpuTexture.getMipLevels());
     }
 
     @Override
-    public GpuTextureView createTextureView(GpuTexture gpuTexture, int startLevel, int levels) {
+    public GpuTextureView createTextureView(GpuTexture gpuTexture, int baseMipLevel, int mipLevels) {
         if (gpuTexture.isClosed()) {
             throw new IllegalArgumentException("Can't create texture view with closed texture");
-        } else if (startLevel >= 0 && startLevel + levels <= gpuTexture.getMipLevels()) {
-
-            // Try to convert gpuTexture to VkGpuTexture in case it's not
-            if (gpuTexture.getClass() != VkGpuTexture.class) {
-                gpuTexture = VkGpuTexture.fromGlTexture((GlTexture) gpuTexture);
-            }
-
-            return new VkTextureView((VkGpuTexture) gpuTexture, startLevel, levels);
-        } else {
+        }
+        if (baseMipLevel < 0 || baseMipLevel + mipLevels > gpuTexture.getMipLevels()) {
             throw new IllegalArgumentException(
-                    levels + " mip levels starting from " + startLevel + " would be out of range for texture with only " + gpuTexture.getMipLevels() + " mip levels"
+                    mipLevels + " mip levels starting from " + baseMipLevel + " would be out of range for texture with only " + gpuTexture.getMipLevels() + " mip levels"
             );
         }
+        return new VkTextureView((VkGpuTexture) gpuTexture, baseMipLevel, mipLevels);
     }
 
     @Override
-    public GpuBuffer createBuffer(@Nullable Supplier<String> supplier, @GpuBuffer.Usage int usage, long size) {
+    public GpuBuffer createBuffer(@Nullable Supplier<String> label, int usage, long size) {
         if (size <= 0) {
             throw new IllegalArgumentException("Buffer size must be greater than zero");
-        } else {
-            return new VkGpuBuffer(this.debugLabels, supplier, usage, size);
         }
+        return new VkGpuBuffer(this.debugLabels, label, usage, size);
     }
 
     @Override
-    public GpuBuffer createBuffer(@Nullable Supplier<String> supplier, int usage, ByteBuffer byteBuffer) {
-        if (!byteBuffer.hasRemaining()) {
+    public GpuBuffer createBuffer(@Nullable Supplier<String> label, int usage, ByteBuffer data) {
+        if (!data.hasRemaining()) {
             throw new IllegalArgumentException("Buffer source must not be empty");
-        } else {
-            VkGpuBuffer glBuffer = new VkGpuBuffer(this.debugLabels, supplier, usage, byteBuffer.remaining());
-            this.encoder.writeToBuffer(glBuffer.slice(), byteBuffer);
-            return glBuffer;
         }
-    }
-
-    @Override
-    public String getImplementationInformation() {
-        return "Vulkan " + Vulkan.getDevice().vkVersion + ", " + Vulkan.getDevice().vendorIdString;
+        VkGpuBuffer buffer = new VkGpuBuffer(this.debugLabels, label, usage, data.remaining());
+        this.encoder.writeToBuffer(buffer.slice(), data);
+        return buffer;
     }
 
     @Override
@@ -211,241 +218,27 @@ public class VkGpuDevice implements GpuDeviceBackend {
     }
 
     @Override
-    public String getRenderer() {
-        return DeviceManager.device.deviceName;
-    }
-
-    @Override
-    public String getVendor() {
-        return Vulkan.getDevice().vendorIdString;
-    }
-
-    @Override
-    public String getBackendName() {
-        return "Vulkan";
-    }
-
-    @Override
-    public String getVersion() {
-        return Vulkan.getDevice().vkVersion;
-    }
-
-    private static int getMaxSupportedTextureSize() {
-        int i = GlStateManager._getInteger(3379);
-
-        for (int j = Math.max(32768, i); j >= 1024; j >>= 1) {
-            GlStateManager._texImage2D(32868, 0, 6408, j, j, 0, 6408, 5121, null);
-            int k = GlStateManager._getTexLevelParameter(32868, 0, 4096);
-            if (k != 0) {
-                return j;
-            }
-        }
-
-        int jx = Math.max(i, 1024);
-        LOGGER.info("Failed to determine maximum texture size by probing, trying GL_MAX_TEXTURE_SIZE = {}", jx);
-        return jx;
-    }
-
-    @Override
-    public int getMaxTextureSize() {
-        return this.maxSupportedTextureSize;
-    }
-
-    @Override
-    public int getUniformOffsetAlignment() {
-        return this.uniformOffsetAlignment;
-    }
-
-    @Override
-    public void clearPipelineCache() {
-        for (GlRenderPipeline glRenderPipeline : this.pipelineCache.values()) {
-            if (glRenderPipeline.program() != GlProgram.INVALID_PROGRAM) {
-                glRenderPipeline.program().close();
-            }
-        }
-
-        this.pipelineCache.clear();
-
-        for (GlShaderModule glShaderModule : this.shaderCache.values()) {
-            if (glShaderModule != GlShaderModule.INVALID_SHADER) {
-                glShaderModule.close();
-            }
-        }
-
-        this.shaderCache.clear();
-    }
-
-    @Override
-    public List<String> getEnabledExtensions() {
-        return new ArrayList(this.enabledExtensions);
-    }
-
-    @Override
-    public int getMaxSupportedAnisotropy() {
-        return Math.max(1, (int) DeviceManager.deviceProperties().limits().maxSamplerAnisotropy());
+    public BackendRenderPipeline.Pending compilePipeline(BackendRenderPipeline.CreateInfo createInfo) {
+        return () -> VkBackendRenderPipeline.compile(createInfo);
     }
 
     @Override
     public void close() {
-        this.clearPipelineCache();
+        this.encoder.transientMemory().close();
     }
 
-    protected GlShaderModule getOrCompileShader(
-            Identifier resourceLocation, ShaderType shaderType, ShaderDefines shaderDefines, BiFunction<Identifier, ShaderType, String> biFunction
-    ) {
-        ShaderCompilationKey shaderCompilationKey = new ShaderCompilationKey(resourceLocation, shaderType, shaderDefines);
-        return this.shaderCache.computeIfAbsent(shaderCompilationKey, shaderCompilationKey2 -> this.compileShader(shaderCompilationKey, biFunction));
+    @Override
+    public GpuQueryPool createTimestampQueryPool(int count) {
+        return new VkQueryPool(count);
     }
 
-    protected String getCachedShaderSrc(Identifier resourceLocation, ShaderType shaderType, ShaderDefines shaderDefines, ShaderSource shaderSourceGetter) {
-        ShaderCompilationKey shaderCompilationKey = new ShaderCompilationKey(resourceLocation, shaderType, shaderDefines);
-
-        return this.shaderSrcCache.computeIfAbsent(shaderCompilationKey, compilationKey -> {
-            String shaderExtension = switch (shaderType) {
-                case VERTEX -> ".vsh";
-                case FRAGMENT -> ".fsh";
-            };
-
-            String shaderName = resourceLocation.getPath() + shaderExtension;
-
-            if (ShaderLoadUtil.REMAPPED_SHADERS.contains(shaderName)) {
-                String src = ShaderLoadUtil.getShaderSource(resourceLocation, shaderType);
-
-                if (src == null) {
-                    throw new RuntimeException("shader: (%s) not found.".formatted(src));
-                }
-
-                return src;
-            }
-
-            return shaderSourceGetter.get(compilationKey.id, compilationKey.type);
-        });
+    @Override
+    public long getTimestampCalibrationOffset() {
+        return 0L;
     }
 
-    public CompiledRenderPipeline precompilePipeline(RenderPipeline renderPipeline, @Nullable ShaderSource shaderSourceGetter) {
-        shaderSourceGetter = shaderSourceGetter == null ? this.defaultShaderSource : shaderSourceGetter;
-
-        try {
-            compilePipeline(renderPipeline, shaderSourceGetter);
-        } catch (Exception e) {
-            throw new RuntimeException("Caught exception compiling pipeline: %s".formatted(renderPipeline.toString()), e);
-        }
-
-
-        return new VkRenderPipeline(renderPipeline);
-    }
-
-    public void compilePipeline(RenderPipeline renderPipeline) {
-        this.compilePipeline(renderPipeline, this.defaultShaderSource);
-    }
-
-    private GlShaderModule compileShader(ShaderCompilationKey shaderCompilationKey, BiFunction<Identifier, ShaderType, String> biFunction) {
-        String string = biFunction.apply(shaderCompilationKey.id, shaderCompilationKey.type);
-        if (string == null) {
-            LOGGER.error("Couldn't find source for {} shader ({})", shaderCompilationKey.type, shaderCompilationKey.id);
-            return GlShaderModule.INVALID_SHADER;
-        } else {
-            String string2 = GlslPreprocessor.injectDefines(string, shaderCompilationKey.defines);
-            int i = GlStateManager.glCreateShader(GlConst.toGl(shaderCompilationKey.type));
-            GlStateManager.glShaderSource(i, string2);
-            GlStateManager.glCompileShader(i);
-            if (GlStateManager.glGetShaderi(i, 35713) == 0) {
-                String string3 = StringUtils.trim(GlStateManager.glGetShaderInfoLog(i, 32768));
-                LOGGER.error("Couldn't compile {} shader ({}): {}", shaderCompilationKey.type.getName(), shaderCompilationKey.id, string3);
-                return GlShaderModule.INVALID_SHADER;
-            } else {
-                GlShaderModule glShaderModule = new GlShaderModule(i, shaderCompilationKey.id, shaderCompilationKey.type);
-                this.debugLabels.applyLabel(glShaderModule);
-                return glShaderModule;
-            }
-        }
-    }
-
-    private void compilePipeline(RenderPipeline renderPipeline, ShaderSource shaderSrcGetter) {
-        String locationPath = renderPipeline.getLocation().getPath();
-
-        String configName;
-        if (locationPath.contains("core")) {
-            configName = locationPath.split("/")[1];
-        } else {
-            configName = locationPath;
-        }
-
-        Pipeline.Builder builder = new Pipeline.Builder(renderPipeline.getVertexFormat(), configName);
-        GraphicsPipeline pipeline;
-        ExtendedRenderPipeline extPipeline = ExtendedRenderPipeline.of(renderPipeline);
-
-        Identifier vertexShaderLocation = renderPipeline.getVertexShader();
-        Identifier fragmentShaderLocation = renderPipeline.getFragmentShader();
-
-        ShaderDefines shaderDefines = renderPipeline.getShaderDefines();
-
-        String vshSrc = this.getCachedShaderSrc(vertexShaderLocation, ShaderType.VERTEX, shaderDefines, shaderSrcGetter);
-        String fshSrc = this.getCachedShaderSrc(fragmentShaderLocation, ShaderType.FRAGMENT, shaderDefines, shaderSrcGetter);
-
-        vshSrc = GlslPreprocessor.injectDefines(vshSrc, GLOBAL_DEFINES);
-        fshSrc = GlslPreprocessor.injectDefines(fshSrc, GLOBAL_DEFINES);
-        vshSrc = GlslPreprocessor.injectDefines(vshSrc, shaderDefines);
-        fshSrc = GlslPreprocessor.injectDefines(fshSrc, shaderDefines);
-
-        try {
-            var spirv = SpirvCompiler.compileShader(vertexShaderLocation.getPath(), vshSrc, SpirvCompiler.ShaderKind.VERTEX_SHADER);
-            var vsSpirv = SpirvShader.createFromSpirv(vertexShaderLocation.getPath(), spirv.bytecode());
-
-            spirv = SpirvCompiler.compileShader(fragmentShaderLocation.getPath(), fshSrc, SpirvCompiler.ShaderKind.FRAGMENT_SHADER);
-            var fsSpirv = SpirvShader.createFromSpirv(fragmentShaderLocation.getPath(), spirv.bytecode());
-
-            SpirvPipeline spirvPipeline = new SpirvPipeline(vsSpirv, fsSpirv);
-
-//            spirvPipeline.setBindings();
-            spirvPipeline.updateLocations(renderPipeline.getVertexFormat().getElementAttributeNames());
-
-
-            List<ImageDescriptor> samplers = spirvPipeline.getSamplerList();
-            List<UBO> ubos = spirvPipeline.createUBOs();
-
-            builder.setShaderSpirv(SpirvCompiler.ShaderKind.VERTEX_SHADER, vsSpirv.spirv());
-            builder.setShaderSpirv(SpirvCompiler.ShaderKind.FRAGMENT_SHADER, fsSpirv.spirv());
-
-            builder.setUniforms(ubos, samplers);
-
-        } catch (ShaderCompileException e) {
-            throw new RuntimeException(e);
-        }
-
-        try {
-            pipeline = builder.createGraphicsPipeline();
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Exception while compiling pipeline %s".formatted(renderPipeline));
-        }
-
-        EGlProgram eGlProgram = new EGlProgram(1, configName);
-        eGlProgram.setupUniforms(pipeline, renderPipeline.getUniforms(), renderPipeline.getSamplers());
-        extPipeline.setProgram(eGlProgram);
-
-        extPipeline.setPipeline(pipeline);
-    }
-
-    @Environment(EnvType.CLIENT)
-    record ShaderCompilationKey(Identifier id, ShaderType type, ShaderDefines defines) {
-
-        public String toString() {
-            String string = this.id + " (" + this.type + ")";
-            return !this.defines.isEmpty() ? string + " with " + this.defines : string;
-        }
-    }
-
-    private static class VkRenderPipeline implements CompiledRenderPipeline {
-        final RenderPipeline renderPipeline;
-
-        public VkRenderPipeline(RenderPipeline renderPipeline) {
-            this.renderPipeline = renderPipeline;
-        }
-
-        @Override
-        public boolean isValid() {
-            return true;
-        }
+    @Override
+    public DeviceInfo getDeviceInfo() {
+        return this.deviceInfo;
     }
 }

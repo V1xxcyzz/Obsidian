@@ -1,46 +1,32 @@
 package net.vulkanmod.mixin.render.target;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.vulkanmod.render.engine.VkFbo;
 import net.vulkanmod.render.engine.VkGpuTexture;
 import org.jetbrains.annotations.Nullable;
-import org.spongepowered.asm.mixin.*;
-
-import java.util.OptionalInt;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(RenderTarget.class)
 public abstract class RenderTargetMixin {
 
-    @Shadow public int width;
-    @Shadow public int height;
-
     @Shadow @Nullable protected GpuTexture colorTexture;
     @Shadow @Nullable protected GpuTexture depthTexture;
-    @Shadow @Nullable protected GpuTextureView colorTextureView;
 
-    @Overwrite
-    public void blitAndBlendToTexture(GpuTextureView gpuTextureView) {
+    @Inject(method = "blitAndBlendToTexture", at = @At("HEAD"), cancellable = true)
+    private void skipUnclearedBlit(GpuTextureView colorTarget, GpuTextureView depthTarget, CallbackInfo ci) {
         RenderSystem.assertOnRenderThread();
-
-        VkFbo fbo = ((VkGpuTexture) this.colorTexture).getFbo(this.depthTexture);
-        if (fbo.needsClear()) {
-            return;
-        }
-
-        try (RenderPass renderPass = RenderSystem.getDevice()
-                                                 .createCommandEncoder()
-                                                 .createRenderPass(() -> "Blit render target", gpuTextureView, OptionalInt.empty())) {
-            renderPass.setPipeline(RenderPipelines.ENTITY_OUTLINE_BLIT);
-            RenderSystem.bindDefaultUniforms(renderPass);
-            renderPass.bindTexture("InSampler", this.colorTextureView, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
-            renderPass.draw(0, 3);
+        if (this.colorTexture instanceof VkGpuTexture vkTex) {
+            VkFbo fbo = vkTex.getFbo(this.depthTexture);
+            if (fbo.needsClear()) {
+                ci.cancel();
+            }
         }
     }
-
 }

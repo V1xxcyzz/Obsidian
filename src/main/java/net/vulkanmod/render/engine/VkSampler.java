@@ -11,12 +11,13 @@ import org.lwjgl.vulkan.VK10;
 import java.util.OptionalDouble;
 
 @Environment(EnvType.CLIENT)
-public class VkSampler extends GpuSampler {
+public class VkSampler implements GpuSampler {
     private final AddressMode addressModeU;
     private final AddressMode addressModeV;
     private final FilterMode minFilter;
     private final FilterMode magFilter;
     private final int maxAnisotropy;
+    private final OptionalDouble maxLodOpt;
     private final float maxLod;
     private boolean closed;
 
@@ -29,15 +30,14 @@ public class VkSampler extends GpuSampler {
         this.minFilter = minFilter;
         this.magFilter = magFilter;
         this.maxAnisotropy = maxAnisotropy;
-        this.maxLod =  maxLod.isPresent() ? (byte) maxLod.getAsDouble() : 1000.0f;
+        this.maxLodOpt = maxLod;
+        this.maxLod = maxLod.isPresent() ? (float) maxLod.getAsDouble() : 1000.0f;
 
         this.id = SamplerManager.getSampler(VkConst.of(addressModeU), VkConst.of(addressModeV),
-                                            VkConst.of(minFilter), VkConst.of(magFilter),
-                                            VK10.VK_SAMPLER_MIPMAP_MODE_LINEAR, this.maxLod,
-                                            maxAnisotropy > 1, maxAnisotropy, -1);
+                VkConst.of(minFilter), VkConst.of(magFilter),
+                VK10.VK_SAMPLER_MIPMAP_MODE_LINEAR, this.maxLod,
+                maxAnisotropy > 1, maxAnisotropy, -1);
     }
-
-
 
     public long getId() {
         return this.id;
@@ -70,17 +70,16 @@ public class VkSampler extends GpuSampler {
 
     @Override
     public OptionalDouble getMaxLod() {
-        return null;
+        return this.maxLodOpt;
+    }
+
+    @Override
+    public boolean isClosed() {
+        return this.closed;
     }
 
     @Override
     public void close() {
-        if (!this.closed) {
-            this.closed = true;
-        }
-    }
-
-    public boolean isClosed() {
-        return this.closed;
+        this.closed = true;
     }
 }

@@ -82,7 +82,7 @@ public abstract class LightDataAccess {
         BlockPos pos = this.pos.set(x, y, z);
         BlockState state = region.getBlockState(pos);
 
-        boolean em = state.emissiveRendering(region, pos);
+        boolean em = state.emissiveRendering();
 
         boolean op;
         if (this.subBlockLighting)

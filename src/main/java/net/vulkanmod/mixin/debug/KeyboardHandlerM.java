@@ -21,7 +21,7 @@ public abstract class KeyboardHandlerM {
     private void chunkDebug(long l, int i, KeyEvent keyEvent, CallbackInfo ci) {
         // GLFW key 296 -> F7
         // U -> Capture frustum
-        this.usedDebugKeyAsModifier |= InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), 296)
+        this.usedDebugKeyAsModifier |= InputConstants.isKeyDown(InputConstants.KEY_F7)
                 && this.handleChunkDebugKeys(keyEvent);
     }
 }

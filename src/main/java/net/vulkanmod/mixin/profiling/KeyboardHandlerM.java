@@ -18,7 +18,7 @@ public class KeyboardHandlerM {
             target = "Lnet/minecraft/client/KeyMapping;set(Lcom/mojang/blaze3d/platform/InputConstants$Key;Z)V",
             ordinal = 1, shift = At.Shift.AFTER))
     private void injOverlayToggle(long l, int i, KeyEvent keyEvent, CallbackInfo ci) {
-        if (InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), InputConstants.KEY_LALT)) {
+        if (InputConstants.isKeyDown(InputConstants.KEY_LALT)) {
             switch (keyEvent.key()) {
                 case InputConstants.KEY_F8 -> ProfilerOverlay.toggle();
                 case InputConstants.KEY_F10 -> BuildTimeProfiler.startBench();

@@ -1,12 +1,8 @@
 package net.vulkanmod.render.engine;
 
-import com.mojang.renderpearl.backend.opengl.GlStateManager;
-import com.mojang.blaze3d.opengl.GlTexture;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.textures.GpuTexture;
-import com.mojang.renderpearl.api.textures.TextureFormat;
-import it.unimi.dsi.fastutil.ints.*;
-import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
+import com.mojang.renderpearl.backend.common.BaseGpuTexture;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.vulkanmod.gl.VkGlTexture;
@@ -15,31 +11,51 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
 
 @Environment(EnvType.CLIENT)
-public class VkGpuTexture extends GlTexture {
-    private static final Reference2ReferenceOpenHashMap<GlTexture, VkGpuTexture> glToVkMap = new Reference2ReferenceOpenHashMap<>();
-
+public class VkGpuTexture extends BaseGpuTexture {
     protected VkGlTexture glTexture;
     protected final int id;
-    private final Int2ReferenceMap<VkFbo> fboCache = new Int2ReferenceOpenHashMap<>();
+    private final it.unimi.dsi.fastutil.ints.Int2ReferenceMap<VkFbo> fboCache = new it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap<>();
     protected boolean closed;
+    private int views;
 
     VkTextureView fboView;
     boolean needsClear = false;
     int clearColor = 0;
     float depthClearValue = 1.0f;
 
-    protected VkGpuTexture(int usage, String string, TextureFormat textureFormat, int width, int height, int layers, int mipLevel, int id, VkGlTexture glTexture) {
-        super(usage, string, textureFormat, width, height, layers, mipLevel, id);
+    protected VkGpuTexture(int usage, String label, GpuFormat format, int width, int height, int layers, int mipLevels, int id, VkGlTexture glTexture) {
+        super(usage, label, format, width, height, layers, mipLevels);
         this.id = id;
         this.glTexture = glTexture;
+    }
+
+    public void addViews() {
+        this.views++;
+    }
+
+    public void removeViews() {
+        this.views--;
+        if (this.closed && this.views <= 0) {
+            this.destroyImage();
+        }
     }
 
     @Override
     public void close() {
         if (!this.closed) {
             this.closed = true;
-            GlStateManager._deleteTexture(this.id);
+            for (VkFbo fbo : this.fboCache.values()) {
+                fbo.close();
+            }
+            this.fboCache.clear();
+            if (this.views <= 0) {
+                this.destroyImage();
+            }
         }
+    }
+
+    private void destroyImage() {
+        VkGlTexture.glDeleteTextures(this.id);
     }
 
     @Override
@@ -66,11 +82,10 @@ public class VkGpuTexture extends GlTexture {
     }
 
     public VkFbo getFbo(@Nullable GpuTexture depthAttachment) {
-        int depthAttachmentId = depthAttachment == null ? 0 : ((VkGpuTexture)depthAttachment).id;
+        int depthAttachmentId = depthAttachment == null ? 0 : ((VkGpuTexture) depthAttachment).id;
 
         if (this.fboView == null) {
-            VkGpuDevice gpuDevice = (VkGpuDevice) RenderSystem.getDevice().backend;
-            this.fboView = (VkTextureView) gpuDevice.createTextureView(this, 0, this.getMipLevels());
+            this.fboView = (VkTextureView) VkGpuDevice.getInstance().createTextureView(this, 0, this.getMipLevels());
         }
 
         return this.fboCache.computeIfAbsent(depthAttachmentId, j -> new VkFbo(this.fboView, (VkGpuTexture) depthAttachment));
@@ -80,48 +95,18 @@ public class VkGpuTexture extends GlTexture {
         return glTexture.getVulkanImage();
     }
 
-    public static VkGpuTexture fromGlTexture(GlTexture glTexture) {
-        return glToVkMap.computeIfAbsent(glTexture, glTexture1 -> {
-            var name = glTexture.getLabel();
-            int id = glTexture.glId();
-            VkGlTexture vglTexture = VkGlTexture.getTexture(id);
-            VkGpuTexture gpuTexture = new VkGpuTexture(0, name, glTexture.getFormat(),
-                                                       glTexture.getWidth(0), glTexture.getHeight(0),
-                                                       1, glTexture.getMipLevels(),
-                                                       glTexture.glId(), vglTexture);
-
-            return gpuTexture;
-        });
+    public static GpuFormat textureFormat(int vkFormat) {
+        return VkConst.gpuFormat(vkFormat);
     }
 
-    public static TextureFormat textureFormat(int format) {
-        return switch (format) {
-            case VK10.VK_FORMAT_R8G8B8A8_UNORM, VK10.VK_FORMAT_B8G8R8A8_UNORM, VK10.VK_FORMAT_R8G8B8A8_SRGB -> TextureFormat.RGBA8;
-            case VK10.VK_FORMAT_R8_UNORM -> TextureFormat.RED8;
-            case VK10.VK_FORMAT_D32_SFLOAT -> TextureFormat.DEPTH32;
-            default -> null;
-        };
-    }
-
-    public static int vkFormat(TextureFormat textureFormat) {
-        return switch (textureFormat) {
-            case RGBA8 -> VK10.VK_FORMAT_R8G8B8A8_UNORM;
-            case RED8 -> VK10.VK_FORMAT_R8_UNORM;
-            case RED8I -> VK10.VK_FORMAT_R8_SINT;
-            case DEPTH32 -> VK10.VK_FORMAT_D32_SFLOAT;
-        };
+    public static int vkFormat(GpuFormat format) {
+        return VkConst.vkFormat(format);
     }
 
     public static int vkImageViewType(int usage) {
-        int viewType;
         if ((usage & GpuTexture.USAGE_CUBEMAP_COMPATIBLE) != 0) {
-            viewType = VK10.VK_IMAGE_VIEW_TYPE_CUBE;
+            return VK10.VK_IMAGE_VIEW_TYPE_CUBE;
         }
-        else {
-            viewType = VK10.VK_IMAGE_VIEW_TYPE_2D;
-        }
-
-        return viewType;
+        return VK10.VK_IMAGE_VIEW_TYPE_2D;
     }
 }
-

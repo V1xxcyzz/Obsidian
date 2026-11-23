@@ -1,8 +1,8 @@
 package net.vulkanmod.mixin.debug;
 
-import com.mojang.blaze3d.platform.GLX;
-import com.mojang.renderpearl.api.device.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.device.DeviceInfo;
+import com.mojang.renderpearl.api.device.GpuDevice;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.debug.DebugEntrySystemSpecs;
 import net.minecraft.client.gui.components.debug.DebugScreenDisplayer;
@@ -29,21 +29,21 @@ public class DebugEntrySystemSpecsM {
     private void display(DebugScreenDisplayer debugScreenDisplayer, Level level, LevelChunk levelChunk,
                         LevelChunk levelChunk2, CallbackInfo ci) {
         GpuDevice gpuDevice = RenderSystem.getDevice();
+        DeviceInfo info = gpuDevice.getDeviceInfo();
         debugScreenDisplayer.addToGroup(
                 GROUP,
                 List.of(
                         String.format(Locale.ROOT, "Java: %s", System.getProperty("java.version")),
-                        String.format(Locale.ROOT, "CPU: %s", GLX._getCpuInfo()),
+                        String.format(Locale.ROOT, "CPU: %s", DebugEntrySystemSpecs.getCpuInfo()),
                         String.format(
-                                Locale.ROOT, "Display: %dx%d (%s)", Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), gpuDevice.getVendor()
+                                Locale.ROOT, "Display: %dx%d (%s)", Minecraft.getInstance().getWindow().getWidth(), Minecraft.getInstance().getWindow().getHeight(), info.vendorName()
                         ),
-                        gpuDevice.getRenderer(),
-                        String.format(Locale.ROOT, "%s %s", gpuDevice.getBackendName(), gpuDevice.getVersion()),
-                        String.format(Locale.ROOT, "VulkanMod %s", Initializer.getVersion())
+                        info.name(),
+                        String.format(Locale.ROOT, "%s %s", info.backendName(), info.driverInfo()),
+                        String.format(Locale.ROOT, "Obsidian %s", Initializer.getVersion())
                 )
         );
 
         ci.cancel();
     }
-
 }

@@ -9,19 +9,16 @@ import net.vulkanmod.Initializer;
 import net.vulkanmod.render.texture.SpriteUpdateUtil;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.Vulkan;
-import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
 public class MinecraftMixin {
 
-    @Shadow public boolean noRender;
     @Shadow @Final public Options options;
 
     @Inject(method = "<init>", at = @At(value = "RETURN"))
@@ -52,18 +49,14 @@ public class MinecraftMixin {
     }
 
 
-    @Inject(method = "close", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/VirtualScreen;close()V"))
+    @Inject(method = "close", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;shutdownRenderer()V"))
     public void close2(CallbackInfo ci) {
         Vulkan.cleanUp();
     }
 
-    @Inject(method = "resizeDisplay", at = @At("HEAD"))
+    @Inject(method = "framebufferSizeChanged", at = @At("HEAD"))
     public void onResolutionChanged(CallbackInfo ci) {
         Renderer.scheduleSwapChainUpdate();
     }
-
-    // Fixes crash when minimizing window before setScreen is called
-    @Redirect(method = "setScreen", at = @At(value = "FIELD", target = "Lnet/minecraft/client/Minecraft;noRender:Z", opcode = Opcodes.PUTFIELD))
-    private void keepVar(Minecraft instance, boolean value) {}
 
 }

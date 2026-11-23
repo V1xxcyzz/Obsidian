@@ -1,11 +1,11 @@
 package net.vulkanmod.vulkan.shader;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 import com.mojang.renderpearl.api.vertex.VertexFormatElement;
+import com.mojang.renderpearl.backend.api.BackendRenderPipeline;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
-import net.vulkanmod.interfaces.VertexFormatMixed;
+import net.vulkanmod.render.engine.VkConst;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.device.DeviceManager;
@@ -26,6 +26,8 @@ public class GraphicsPipeline extends Pipeline {
 
     private final VertexFormat vertexFormat;
     private final VertexInputDescription vertexInputDescription;
+    private final String vertEntryPoint;
+    private final String fragEntryPoint;
 
     private long vertShaderModule = 0;
     private long fragShaderModule = 0;
@@ -36,8 +38,14 @@ public class GraphicsPipeline extends Pipeline {
         this.imageDescriptors = builder.imageDescriptors;
         this.pushConstants = builder.pushConstants;
         this.vertexFormat = builder.vertexFormat;
+        this.vertEntryPoint = builder.vertEntryPoint;
+        this.fragEntryPoint = builder.fragEntryPoint;
 
-        this.vertexInputDescription = new VertexInputDescription(this.vertexFormat);
+        if (builder.createInfo != null) {
+            this.vertexInputDescription = new VertexInputDescription(builder.createInfo.vertexBuffers(), builder.createInfo.attribBindings());
+        } else {
+            this.vertexInputDescription = new VertexInputDescription(this.vertexFormat);
+        }
 
         createDescriptorSetLayout();
         createPipelineLayout();
@@ -59,7 +67,8 @@ public class GraphicsPipeline extends Pipeline {
 
     private long createGraphicsPipeline(PipelineState state) {
         try (MemoryStack stack = stackPush()) {
-            ByteBuffer entryPoint = stack.UTF8("main");
+            ByteBuffer vertEntry = stack.UTF8(this.vertEntryPoint);
+            ByteBuffer fragEntry = stack.UTF8(this.fragEntryPoint);
 
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
 
@@ -68,14 +77,14 @@ public class GraphicsPipeline extends Pipeline {
             vertShaderStageInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
             vertShaderStageInfo.stage(VK_SHADER_STAGE_VERTEX_BIT);
             vertShaderStageInfo.module(vertShaderModule);
-            vertShaderStageInfo.pName(entryPoint);
+            vertShaderStageInfo.pName(vertEntry);
 
             VkPipelineShaderStageCreateInfo fragShaderStageInfo = shaderStages.get(1);
 
             fragShaderStageInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
             fragShaderStageInfo.stage(VK_SHADER_STAGE_FRAGMENT_BIT);
             fragShaderStageInfo.module(fragShaderModule);
-            fragShaderStageInfo.pName(entryPoint);
+            fragShaderStageInfo.pName(fragEntry);
 
             // ===> VERTEX STAGE <===
 
@@ -274,7 +283,7 @@ public class GraphicsPipeline extends Pipeline {
         final VkVertexInputBindingDescription.Buffer bindingDescriptions;
 
         VertexInputDescription(VertexFormat vertexFormat) {
-            if (vertexFormat != DefaultVertexFormat.EMPTY) {
+            if (vertexFormat != null && !vertexFormat.getElements().isEmpty()) {
                 this.bindingDescriptions = getBindingDescription(vertexFormat);
                 this.attributeDescriptions = getAttributeDescriptions(vertexFormat);
             }
@@ -284,9 +293,40 @@ public class GraphicsPipeline extends Pipeline {
             }
         }
 
+        VertexInputDescription(List<BackendRenderPipeline.CreateInfo.VertexBuffer> vertexBuffers,
+                               List<BackendRenderPipeline.CreateInfo.AttribBinding> attribBindings) {
+            if (!vertexBuffers.isEmpty() && !attribBindings.isEmpty()) {
+                VkVertexInputBindingDescription.Buffer bindings = VkVertexInputBindingDescription.calloc(vertexBuffers.size());
+                for (int i = 0; i < vertexBuffers.size(); i++) {
+                    BackendRenderPipeline.CreateInfo.VertexBuffer vb = vertexBuffers.get(i);
+                    VkVertexInputBindingDescription desc = bindings.get(i);
+                    desc.binding(vb.bufferSlot());
+                    desc.stride(vb.stride());
+                    desc.inputRate(vb.stepRate() > 0 ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX);
+                }
+                this.bindingDescriptions = bindings.rewind();
+
+                VkVertexInputAttributeDescription.Buffer attrs = VkVertexInputAttributeDescription.calloc(attribBindings.size());
+                for (int i = 0; i < attribBindings.size(); i++) {
+                    BackendRenderPipeline.CreateInfo.AttribBinding ab = attribBindings.get(i);
+                    VkVertexInputAttributeDescription attr = attrs.get(i);
+                    attr.binding(ab.bufferSlot());
+                    attr.location(ab.location());
+                    attr.format(VkConst.vkFormat(ab.format()));
+                    attr.offset(ab.offset());
+                }
+                this.attributeDescriptions = attrs.rewind();
+            } else {
+                this.bindingDescriptions = null;
+                this.attributeDescriptions = null;
+            }
+        }
+
         void cleanUp() {
             if (this.bindingDescriptions != null) {
                 MemoryUtil.memFree(this.bindingDescriptions);
+            }
+            if (this.attributeDescriptions != null) {
                 MemoryUtil.memFree(this.attributeDescriptions);
             }
         }
@@ -297,7 +337,7 @@ public class GraphicsPipeline extends Pipeline {
 
         bindingDescription.binding(0);
         bindingDescription.stride(vertexFormat.getVertexSize());
-        bindingDescription.inputRate(VK_VERTEX_INPUT_RATE_VERTEX);
+        bindingDescription.inputRate(vertexFormat.getStepRate() > 0 ? VK_VERTEX_INPUT_RATE_INSTANCE : VK_VERTEX_INPUT_RATE_VERTEX);
 
         return bindingDescription;
     }
@@ -309,44 +349,14 @@ public class GraphicsPipeline extends Pipeline {
 
         VkVertexInputAttributeDescription.Buffer attributeDescriptions = VkVertexInputAttributeDescription.calloc(size);
 
-        int offset = 0;
-
         for (int i = 0; i < size; ++i) {
             VkVertexInputAttributeDescription posDescription = attributeDescriptions.get(i);
             posDescription.binding(0);
             posDescription.location(i);
 
             VertexFormatElement formatElement = elements.get(i);
-            VertexFormatElement.Type type = formatElement.type();
-            int elementCount = formatElement.count();
-            boolean normalized = formatElement.normalized();
-
-            switch (type) {
-                case FLOAT -> {
-                    switch (elementCount) {
-                        case 3 -> posDescription.format(VK_FORMAT_R32G32B32_SFLOAT);
-                        case 2 -> posDescription.format(VK_FORMAT_R32G32_SFLOAT);
-                        case 1 -> posDescription.format(VK_FORMAT_R32_SFLOAT);
-                        default -> throw new RuntimeException(String.format("Unknown FLOAT count: %d", elementCount));
-                    }
-                }
-                case SHORT -> {
-                    switch (elementCount) {
-                        case 4, 3 -> posDescription.format(VK_FORMAT_R16G16B16A16_SINT);
-                        case 2 -> posDescription.format(VK_FORMAT_R16G16_SINT);
-                        case 1 -> posDescription.format(VK_FORMAT_R16_SINT);
-                        default -> throw new RuntimeException(String.format("Unknown SHORT count: %d", elementCount));
-                    }
-                }
-                case USHORT -> posDescription.format(VK_FORMAT_R16G16_UINT);
-                case BYTE -> posDescription.format(normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT);
-                case UBYTE -> posDescription.format(VK_FORMAT_R8G8B8A8_UNORM);
-                case UINT -> posDescription.format(VK_FORMAT_R32_UINT);
-                case INT -> posDescription.format(VK_FORMAT_R32_SINT);
-                default -> throw new RuntimeException(String.format("Unknown type: %s", type));
-            }
-
-            posDescription.offset(((VertexFormatMixed) (vertexFormat)).getOffset(i));
+            posDescription.format(VkConst.vkFormat(formatElement.format()));
+            posDescription.offset(formatElement.offset());
         }
 
         return attributeDescriptions.rewind();

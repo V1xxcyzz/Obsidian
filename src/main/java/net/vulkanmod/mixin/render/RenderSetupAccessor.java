@@ -2,7 +2,6 @@ package net.vulkanmod.mixin.render;
 
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import net.minecraft.client.renderer.rendertype.LayeringTransform;
-import net.minecraft.client.renderer.rendertype.OutputTarget;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
 import org.spongepowered.asm.mixin.Mixin;
@@ -16,9 +15,6 @@ public interface RenderSetupAccessor {
 
     @Accessor("layeringTransform")
     LayeringTransform layeringTransform();
-
-    @Accessor("outputTarget")
-    OutputTarget outputTarget();
 
     @Accessor("textureTransform")
     TextureTransform textureTransform();

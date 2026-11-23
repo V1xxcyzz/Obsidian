@@ -1,6 +1,5 @@
 package net.vulkanmod.render.engine;
 
-import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import net.minecraft.util.ARGB;
 import net.vulkanmod.gl.VkGlFramebuffer;
 import net.vulkanmod.vulkan.Renderer;
@@ -13,11 +12,10 @@ public class VkFbo {
     final VkGpuTexture depthAttachment;
 
     protected VkFbo(VkTextureView colorAttachmentView, VkGpuTexture depthAttachment) {
-        this.glId = GlStateManager.glGenFramebuffers();
+        this.glId = VkGlFramebuffer.genFramebufferId();
         this.colorAttachmentView = colorAttachmentView;
         this.depthAttachment = depthAttachment;
 
-        // Direct access
         VkGlFramebuffer fbo = VkGlFramebuffer.getFramebuffer(this.glId);
 
         VkGpuTexture colorAttachmentTexture = this.colorAttachmentView.texture();
@@ -36,25 +34,18 @@ public class VkFbo {
 
     protected void clearAttachments() {
         int clear = 0;
-        float clearDepth;
-        int clearColor;
 
         VkGpuTexture colorAttachmentTexture = colorAttachmentView.texture();
         if (colorAttachmentTexture.needsClear()) {
             clear |= 0x4000;
-            clearColor = colorAttachmentTexture.clearColor;
-
+            int clearColor = colorAttachmentTexture.clearColor;
             VRenderSystem.setClearColor(ARGB.redFloat(clearColor), ARGB.greenFloat(clearColor), ARGB.blueFloat(clearColor), ARGB.alphaFloat(clearColor));
-
             colorAttachmentTexture.needsClear = false;
         }
 
         if (depthAttachment != null && depthAttachment.needsClear()) {
             clear |= 0x100;
-            clearDepth = depthAttachment.depthClearValue;
-
-            VRenderSystem.clearDepth(clearDepth);
-
+            VRenderSystem.clearDepth(depthAttachment.depthClearValue);
             depthAttachment.needsClear = false;
         }
 

@@ -1,5 +1,6 @@
 package net.vulkanmod.render.vertex;
 
+import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 import net.vulkanmod.render.util.SortUtil;
 import org.lwjgl.system.MemoryUtil;
@@ -120,17 +121,17 @@ public class QuadSorter {
         SortUtil.mergeSort(indices, distances, 0, count, scratch);
     }
 
-    public void putSortedQuadIndices(TerrainBufferBuilder bufferBuilder, VertexFormat.IndexType indexType) {
+    public void putSortedQuadIndices(TerrainBufferBuilder bufferBuilder, IndexType indexType) {
         sortQuads();
         writeSortedIndices(bufferBuilder.getPtr(), indexType);
     }
 
-    public void putSortedQuadIndices(TerrainBuilder bufferBuilder, VertexFormat.IndexType indexType) {
+    public void putSortedQuadIndices(TerrainBuilder bufferBuilder, IndexType indexType) {
         sortQuads();
         writeSortedIndices(bufferBuilder.indexBufferPtr, indexType);
     }
 
-    private void writeSortedIndices(long ptr, VertexFormat.IndexType indexType) {
+    private void writeSortedIndices(long ptr, IndexType indexType) {
         int[] indices = this.sortingPointsIndices;
         int count = this.pointCount;
         final int size = indexType.bytes;

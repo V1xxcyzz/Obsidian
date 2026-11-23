@@ -1,10 +1,12 @@
 package net.vulkanmod.mixin.profiling;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.DebugScreenOverlay;
+import net.minecraft.client.gui.Hud;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.profiling.HudOverlay;
 import net.vulkanmod.render.profiling.ProfilerOverlay;
@@ -18,16 +20,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Gui.class)
 public class GuiMixin {
 
-    @Shadow @Final private DebugScreenOverlay debugOverlay;
+    @Shadow @Final private Minecraft minecraft;
 
     @Inject(method = "<init>", at = @At("RETURN"))
-    private void createProfilerOverlay(Minecraft minecraft, CallbackInfo ci) {
+    private void createProfilerOverlay(Minecraft minecraft, Hud hud, GuiRenderState guiRenderState, CallbackInfo ci) {
         ProfilerOverlay.createInstance(minecraft);
     }
 
-    @Inject(method = "render", at = @At(value = "RETURN"))
-    private void renderProfilerOverlay(GuiGraphicsExtractor guiGraphics, DeltaTracker deltaTracker, CallbackInfo ci) {
-        if (!this.debugOverlay.showDebugScreen()) {
+    @Inject(method = "extractRenderState", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;applyCursor(Lcom/mojang/blaze3d/platform/Window;)V"))
+    private void renderProfilerOverlay(DeltaTracker deltaTracker, boolean hudVisible, boolean screenVisible, CallbackInfo ci, @Local GuiGraphicsExtractor guiGraphics) {
+        if (!this.minecraft.getDebugOverlay().showDebugScreen()) {
             if (ProfilerOverlay.shouldRender) {
                 ProfilerOverlay.INSTANCE.render(guiGraphics);
             } else if (HudOverlay.shouldRender()) {

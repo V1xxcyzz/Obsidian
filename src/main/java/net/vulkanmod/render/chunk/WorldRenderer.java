@@ -335,20 +335,20 @@ public class WorldRenderer {
         final boolean indirectDraw = Initializer.CONFIG.indirectDraw;
 
         if (!isTranslucent) {
-            GlStateManager._disableBlend();
+            VRenderSystem.disableBlend();
         } else {
-            GlStateManager._enableBlend();
+            VRenderSystem.enableBlend();
             VRenderSystem.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
         }
 
         VRenderSystem.enableCull();
         VRenderSystem.glDepthFun(GL11.GL_LEQUAL);
 
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
+        VRenderSystem.enableDepthTest();
+        VRenderSystem.depthMask(true);
 
-        GlStateManager._colorMask(com.mojang.blaze3d.pipeline.ColorTargetState.WRITE_ALL);
-        GlStateManager._disablePolygonOffset();
+        VRenderSystem.colorMask(true, true, true, true);
+        VRenderSystem.disablePolygonOffset();
         VRenderSystem.setPolygonModeGL(GL11.GL_FILL);
 
         VRenderSystem.applyMVP(modelView, projection);
@@ -544,7 +544,7 @@ public class WorldRenderer {
                         crumblingOverlay = null;
                     }
 
-                    BlockEntityRenderState blockEntityRenderState = this.blockEntityRenderDispatcher.tryExtractRenderState(blockEntity, this.partialTick, crumblingOverlay);
+                    BlockEntityRenderState blockEntityRenderState = this.blockEntityRenderDispatcher.tryExtractRenderState(blockEntity, this.partialTick, crumblingOverlay, false);
                     if (blockEntityRenderState != null) {
                         levelRenderState.blockEntityRenderStates.add(blockEntityRenderState);
                     }
@@ -562,7 +562,7 @@ public class WorldRenderer {
                 if (cullBlockEntities && !isGlobalBlockEntityVisible(frustum, blockEntity2.getBlockPos())) {
                     continue;
                 }
-                BlockEntityRenderState blockEntityRenderState2 = this.blockEntityRenderDispatcher.tryExtractRenderState(blockEntity2, this.partialTick, null);
+                BlockEntityRenderState blockEntityRenderState2 = this.blockEntityRenderDispatcher.tryExtractRenderState(blockEntity2, this.partialTick, null, false);
                 if (blockEntityRenderState2 != null) {
                     levelRenderState.blockEntityRenderStates.add(blockEntityRenderState2);
                 }

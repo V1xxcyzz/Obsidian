@@ -226,7 +226,8 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 		QuadLightData data = this.quadLightData;
 
 		// TODO: enhanced AO
-		lightPipeline.calculate(quad, this.blockPos, data, quad.cullFace(), quad.lightFace(), quad.diffuseShade());
+		var shadeFace = quad.shadeDirectionOverride() != null ? quad.shadeDirectionOverride() : quad.lightFace();
+		lightPipeline.calculate(quad, this.blockPos, data, quad.cullFace(), shadeFace, true);
 
 		if (emissive) {
 			for (int i = 0; i < 4; i++) {

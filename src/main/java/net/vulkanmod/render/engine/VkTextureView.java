@@ -1,12 +1,12 @@
 package net.vulkanmod.render.engine;
 
 import com.mojang.renderpearl.api.textures.GpuTexture;
-import com.mojang.renderpearl.api.textures.GpuTextureView;
+import com.mojang.renderpearl.backend.common.BaseGpuTextureView;
 import it.unimi.dsi.fastutil.ints.Int2ReferenceMap;
 import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 
-public class VkTextureView extends GpuTextureView {
+public class VkTextureView extends BaseGpuTextureView {
     private boolean closed;
 
     private final Int2ReferenceMap<VkFbo> fboCache = new Int2ReferenceOpenHashMap<>();
@@ -17,7 +17,7 @@ public class VkTextureView extends GpuTextureView {
     }
 
     public VkFbo getFbo(@Nullable GpuTexture depthAttachment) {
-        int depthAttachmentId = depthAttachment == null ? 0 : ((VkGpuTexture)depthAttachment).id;
+        int depthAttachmentId = depthAttachment == null ? 0 : ((VkGpuTexture) depthAttachment).id;
         return this.fboCache.computeIfAbsent(depthAttachmentId, j -> new VkFbo(this, (VkGpuTexture) depthAttachment));
     }
 
@@ -36,8 +36,10 @@ public class VkTextureView extends GpuTextureView {
         for (VkFbo fbo : this.fboCache.values()) {
             fbo.close();
         }
+        this.fboCache.clear();
     }
 
+    @Override
     public VkGpuTexture texture() {
         return (VkGpuTexture) super.texture();
     }

@@ -246,8 +246,9 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 	}
 
 	@Override
-	public boolean diffuseShade() {
-		return EncodingFormat.diffuseShade(data[baseIndex + HEADER_BITS]);
+	@Nullable
+	public Direction shadeDirectionOverride() {
+		return EncodingFormat.shadeDirectionOverride(data[baseIndex + HEADER_BITS]);
 	}
 
 	@Override
@@ -267,6 +268,8 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 
 	protected boolean animated;
 	protected net.minecraft.client.renderer.rendertype.@Nullable RenderType itemRenderType;
+	protected net.minecraft.client.renderer.rendertype.@Nullable RenderType itemGlintRenderType;
+	protected net.minecraft.client.renderer.rendertype.@Nullable RenderType itemGlintSpecialRenderType;
 
 	@Override
 	public boolean animated() {
@@ -276,6 +279,16 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 	@Override
 	public net.minecraft.client.renderer.rendertype.@Nullable RenderType itemRenderType() {
 		return this.itemRenderType;
+	}
+
+	@Override
+	public net.minecraft.client.renderer.rendertype.@Nullable RenderType itemGlintRenderType() {
+		return this.itemGlintRenderType;
+	}
+
+	@Override
+	public net.minecraft.client.renderer.rendertype.@Nullable RenderType itemGlintSpecialRenderType() {
+		return this.itemGlintSpecialRenderType;
 	}
 
 	@Override

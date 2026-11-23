@@ -35,18 +35,22 @@ public class GlStateManagerM {
      * @author
      */
     @Overwrite(remap = false)
-    public static void _disableBlend() {
-        RenderSystem.assertOnRenderThread();
-        VRenderSystem.disableBlend();
+    public static void _disableBlend(int i) {
+        if (i == 0) {
+            RenderSystem.assertOnRenderThread();
+            VRenderSystem.disableBlend();
+        }
     }
 
     /**
      * @author
      */
     @Overwrite(remap = false)
-    public static void _enableBlend() {
-        RenderSystem.assertOnRenderThread();
-        VRenderSystem.enableBlend();
+    public static void _enableBlend(int i) {
+        if (i == 0) {
+            RenderSystem.assertOnRenderThread();
+            VRenderSystem.enableBlend();
+        }
     }
 
     /**
@@ -188,9 +192,20 @@ public class GlStateManagerM {
      * @author
      */
     @Overwrite(remap = false)
-    public static void _colorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+    public static void _colorMask(int mask) {
         RenderSystem.assertOnRenderThread();
-        VRenderSystem.colorMask(red, green, blue, alpha);
+        VRenderSystem.colorMask((mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0, (mask & 8) != 0);
+    }
+
+    /**
+     * @author
+     */
+    @Overwrite(remap = false)
+    public static void _colorMask(int i, int mask) {
+        if (i == 0) {
+            RenderSystem.assertOnRenderThread();
+            VRenderSystem.colorMask((mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0, (mask & 8) != 0);
+        }
     }
 
     /**

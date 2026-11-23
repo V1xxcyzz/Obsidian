@@ -61,7 +61,7 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 		quad.color(-1, -1, -1, -1);
 		quad.cullFace(null);
 		quad.chunkLayer(null);
-		quad.diffuseShade(true);
+		quad.shadeDirectionOverride(null);
 		quad.ambientOcclusion(TriState.DEFAULT);
 		quad.foilType(null);
 		quad.tintIndex(-1);
@@ -175,8 +175,8 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 	}
 
 	@Override
-	public MutableQuadViewImpl diffuseShade(boolean shade) {
-		data[baseIndex + HEADER_BITS] = EncodingFormat.diffuseShade(data[baseIndex + HEADER_BITS], shade);
+	public MutableQuadViewImpl shadeDirectionOverride(@Nullable Direction dir) {
+		data[baseIndex + HEADER_BITS] = EncodingFormat.shadeDirectionOverride(data[baseIndex + HEADER_BITS], dir);
 		return this;
 	}
 
@@ -217,6 +217,18 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 	}
 
 	@Override
+	public MutableQuadViewImpl itemGlintRenderType(net.minecraft.client.renderer.rendertype.@org.jspecify.annotations.Nullable RenderType renderType) {
+		this.itemGlintRenderType = renderType;
+		return this;
+	}
+
+	@Override
+	public MutableQuadViewImpl itemGlintSpecialRenderType(net.minecraft.client.renderer.rendertype.@org.jspecify.annotations.Nullable RenderType renderType) {
+		this.itemGlintSpecialRenderType = renderType;
+		return this;
+	}
+
+	@Override
 	public MutableQuadViewImpl atlas(QuadAtlas quadAtlas) {
 		data[baseIndex + HEADER_BITS] = EncodingFormat.quadAtlas(data[baseIndex + HEADER_BITS], quadAtlas);
 		return this;
@@ -240,6 +252,10 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 		System.arraycopy(q.data, q.baseIndex, data, baseIndex, EncodingFormat.TOTAL_STRIDE);
 		nominalFace = q.nominalFace;
 		isGeometryInvalid = q.isGeometryInvalid;
+		animated = q.animated;
+		itemRenderType = q.itemRenderType;
+		itemGlintRenderType = q.itemGlintRenderType;
+		itemGlintSpecialRenderType = q.itemGlintSpecialRenderType;
 
 		if (!isGeometryInvalid) {
 			faceNormal.set(q.faceNormal);
@@ -275,7 +291,10 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 
 		nominalFace(quad.direction());
 		emissive(lightEmission == 15);
-		diffuseShade(material.shade());
+		shadeDirectionOverride(material.shadeDirectionOverride());
+		itemRenderType(material.itemRenderType());
+		itemGlintRenderType(material.itemGlintRenderType());
+		itemGlintSpecialRenderType(material.itemGlintSpecialRenderType());
 		chunkLayer(material.layer());
 		QuadAtlas atlas = QuadAtlas.ofLocation(material.sprite().atlasLocation());
 

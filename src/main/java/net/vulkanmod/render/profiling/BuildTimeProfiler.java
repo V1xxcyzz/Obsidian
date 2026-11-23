@@ -1,6 +1,6 @@
 package net.vulkanmod.render.profiling;
 
-import net.minecraft.client.Minecraft;
+import net.vulkanmod.render.chunk.WorldRenderer;
 
 public abstract class BuildTimeProfiler {
 
@@ -24,7 +24,9 @@ public abstract class BuildTimeProfiler {
 
     public static void startBench() {
         bench = true;
-        Minecraft.getInstance().levelRenderer.allChanged();
+        if (WorldRenderer.getInstance() != null) {
+            WorldRenderer.getInstance().allChanged();
+        }
     }
 
     public static float getDeltaTime() {

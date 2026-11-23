@@ -274,7 +274,7 @@ public class VOptionScreen extends Screen {
         int y0 = this.height - VGuiConstants.WIDGET_HEIGHT - 8;
 
         VButtonWidget doneButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
-                CommonComponents.GUI_DONE, button -> Minecraft.getInstance().setScreen(this.parent));
+                CommonComponents.GUI_DONE, button -> Minecraft.getInstance().setScreenAndShow(this.parent));
 
         buttonWidth = Minecraft.getInstance().font.width(Component.translatable("vulkanmod.options.buttons.apply")) + 2 * padding;
         x0 -= (buttonWidth + VGuiConstants.WIDGET_MARGIN);
@@ -324,7 +324,7 @@ public class VOptionScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().setScreenAndShow(this.parent);
     }
 
     @Override
@@ -484,7 +484,7 @@ public class VOptionScreen extends Screen {
         if (!this.searchField.focused
                 && keyEvent.key() == InputConstants.KEY_P
                 && keyEvent.hasShiftDown()) {
-            Minecraft.getInstance().setScreen(new VideoSettingsScreen(this, Minecraft.getInstance(), Minecraft.getInstance().options));
+            Minecraft.getInstance().setScreenAndShow(new VideoSettingsScreen(this, Minecraft.getInstance(), Minecraft.getInstance().options));
 
             return false;
         }

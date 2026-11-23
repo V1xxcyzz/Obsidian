@@ -1,12 +1,11 @@
 package net.vulkanmod.render.util;
 
-import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.vulkanmod.vulkan.shader.GraphicsPipeline;
-import net.vulkanmod.vulkan.shader.Pipeline;
 import net.vulkanmod.vulkan.texture.VTextureSelector;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import org.joml.Matrix4f;
@@ -20,31 +19,31 @@ public class DrawUtil {
 
     public static void drawTexQuad(BufferBuilder builder, float x0, float y0, float x1, float y1, float z,
                                    float u0, float v0, float u1, float v1) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferBuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferBuilder.addVertex(x0, y0, z).setUv(0.0F, 1.0F);
-        bufferBuilder.addVertex(x1, y0, z).setUv(1.0F, 1.0F);
-        bufferBuilder.addVertex(x1, y1, z).setUv(1.0F, 0.0F);
-        bufferBuilder.addVertex(x0, y1, z).setUv(0.0F, 0.0F);
+        try (ByteBufferBuilder byteBuffer = new ByteBufferBuilder(1024)) {
+            BufferBuilder bufferBuilder = new BufferBuilder(byteBuffer, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferBuilder.addVertex(x0, y0, z).setUv(u0, v0);
+            bufferBuilder.addVertex(x1, y0, z).setUv(u1, v0);
+            bufferBuilder.addVertex(x1, y1, z).setUv(u1, v1);
+            bufferBuilder.addVertex(x0, y1, z).setUv(u0, v1);
 
-        MeshData meshData = bufferBuilder.buildOrThrow();
-
-        Renderer.getDrawer().draw(meshData.vertexBuffer(), VertexFormat.Mode.QUADS, meshData.drawState().format(), meshData.drawState().vertexCount());
-
+            try (MeshData meshData = bufferBuilder.buildOrThrow()) {
+                Renderer.getDrawer().draw(meshData.vertexBuffer(), PrimitiveTopology.QUADS, meshData.drawState().format(), meshData.drawState().vertexCount());
+            }
+        }
     }
 
     public static void blitQuad(float x0, float y0, float x1, float y1) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferBuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferBuilder.addVertex(x0, y0, 0.0f).setUv(0.0F, 1.0F);
-        bufferBuilder.addVertex(x1, y0, 0.0f).setUv(1.0F, 1.0F);
-        bufferBuilder.addVertex(x1, y1, 0.0f).setUv(1.0F, 0.0F);
-        bufferBuilder.addVertex(x0, y1, 0.0f).setUv(0.0F, 0.0F);
+        try (ByteBufferBuilder byteBuffer = new ByteBufferBuilder(1024)) {
+            BufferBuilder bufferBuilder = new BufferBuilder(byteBuffer, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferBuilder.addVertex(x0, y0, 0.0f).setUv(0.0F, 1.0F);
+            bufferBuilder.addVertex(x1, y0, 0.0f).setUv(1.0F, 1.0F);
+            bufferBuilder.addVertex(x1, y1, 0.0f).setUv(1.0F, 0.0F);
+            bufferBuilder.addVertex(x0, y1, 0.0f).setUv(0.0F, 0.0F);
 
-        MeshData meshData = bufferBuilder.buildOrThrow();
-
-        Renderer.getDrawer().draw(meshData.vertexBuffer(), VertexFormat.Mode.QUADS, meshData.drawState().format(), meshData.drawState().vertexCount());
-
+            try (MeshData meshData = bufferBuilder.buildOrThrow()) {
+                Renderer.getDrawer().draw(meshData.vertexBuffer(), PrimitiveTopology.QUADS, meshData.drawState().format(), meshData.drawState().vertexCount());
+            }
+        }
     }
 
     public static void drawFramebuffer(GraphicsPipeline pipeline, VulkanImage attachment) {

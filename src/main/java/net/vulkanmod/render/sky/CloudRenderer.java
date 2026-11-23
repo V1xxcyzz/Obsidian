@@ -1,9 +1,9 @@
 package net.vulkanmod.render.sky;
 
-import com.mojang.renderpearl.backend.opengl.GlStateManager;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import net.minecraft.client.CloudStatus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
@@ -18,7 +18,6 @@ import net.vulkanmod.vulkan.shader.GraphicsPipeline;
 import net.vulkanmod.vulkan.util.ColorUtil;
 import org.apache.commons.lang3.Validate;
 import org.joml.Matrix4fStack;
-import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 
@@ -100,14 +99,16 @@ public class CloudRenderer {
 
             this.resetBuffer();
 
-            MeshData cloudsMesh = this.buildClouds(Tesselator.getInstance(), centerCellX, centerCellZ, centerY);
+            try (ByteBufferBuilder byteBufferBuilder = new ByteBufferBuilder(65536)) {
+                MeshData cloudsMesh = this.buildClouds(byteBufferBuilder, centerCellX, centerCellZ, centerY);
 
-            if (cloudsMesh == null) {
-                return;
+                if (cloudsMesh == null) {
+                    return;
+                }
+
+                this.cloudBuffer = new VBO(true);
+                this.cloudBuffer.upload(cloudsMesh);
             }
-
-            this.cloudBuffer = new VBO(true);
-            this.cloudBuffer.upload(cloudsMesh);
         }
 
         if (this.cloudBuffer == null) {
@@ -135,15 +136,19 @@ public class CloudRenderer {
 
         GraphicsPipeline pipeline = PipelineManager.getCloudsPipeline();
         VRenderSystem.enableBlend();
-        VRenderSystem.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
+        VRenderSystem.blendFuncSeparate(
+                org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_SRC_ALPHA,
+                org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ONE,
+                org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ZERO
+        );
         VRenderSystem.enableDepthTest();
-        VRenderSystem.glDepthFun(GL11.GL_LEQUAL);
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        GlStateManager._colorMask(com.mojang.blaze3d.pipeline.ColorTargetState.WRITE_ALL);
-        GlStateManager._disablePolygonOffset();
-        VRenderSystem.setPolygonModeGL(GL11.GL_FILL);
-        VRenderSystem.setPrimitiveTopologyGL(GL11.GL_TRIANGLES);
+        VRenderSystem.depthFun = org.lwjgl.vulkan.VK10.VK_COMPARE_OP_LESS_OR_EQUAL;
+        VRenderSystem.depthMask(true);
+        VRenderSystem.colorMask(true, true, true, true);
+        VRenderSystem.disablePolygonOffset();
+        VRenderSystem.polygonMode = org.lwjgl.vulkan.VK10.VK_POLYGON_MODE_FILL;
+        VRenderSystem.topology = org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
         boolean fastClouds = this.prevCloudsType == CloudStatus.FAST;
         boolean insideClouds = yState == Y_INSIDE_CLOUDS;
@@ -180,13 +185,13 @@ public class CloudRenderer {
         }
     }
 
-    private MeshData buildClouds(Tesselator tesselator, int centerCellX, int centerCellZ, double cloudY) {
+    private MeshData buildClouds(ByteBufferBuilder byteBufferBuilder, int centerCellX, int centerCellZ, double cloudY) {
         final float upFaceBrightness = 1.0f;
         final float xDirBrightness = 0.9f;
         final float downFaceBrightness = 0.7f;
         final float zDirBrightness = 0.8f;
 
-        BufferBuilder bufferBuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder bufferBuilder = new BufferBuilder(byteBufferBuilder, PrimitiveTopology.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
         int cloudRange = Math.min(Minecraft.getInstance().options.cloudRange().get(), 128) * 16;
         int renderDistance = Mth.ceil(cloudRange / 12.0F);

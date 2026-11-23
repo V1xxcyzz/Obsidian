@@ -1,6 +1,9 @@
 package net.vulkanmod.vulkan.shader;
 
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
+import com.mojang.renderpearl.api.pipeline.ShaderType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
+import com.mojang.renderpearl.backend.api.BackendRenderPipeline;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.device.DeviceManager;
@@ -231,8 +234,13 @@ public abstract class Pipeline {
         return new Builder(vertexFormat, path);
     }
 
+    public static Builder builder(BackendRenderPipeline.CreateInfo createInfo) {
+        return new Builder(createInfo);
+    }
+
     public static class Builder {
         public final VertexFormat vertexFormat;
+        public final BackendRenderPipeline.CreateInfo createInfo;
         public final String name;
         List<UBO> UBOs = new ArrayList<>();
         List<ImageDescriptor> imageDescriptors = new ArrayList<>();
@@ -241,6 +249,8 @@ public abstract class Pipeline {
 
         Map<ShaderKind, String> shadersSrc = new EnumMap<>(ShaderKind.class);
         Map<ShaderKind, ByteBuffer> shadersSpirv = new EnumMap<>(ShaderKind.class);
+        String vertEntryPoint = "main";
+        String fragEntryPoint = "main";
 
         RenderPass renderPass;
 
@@ -248,7 +258,60 @@ public abstract class Pipeline {
 
         public Builder(VertexFormat vertexFormat, String name) {
             this.vertexFormat = vertexFormat;
+            this.createInfo = null;
             this.name = name;
+        }
+
+        public Builder(BackendRenderPipeline.CreateInfo createInfo) {
+            this.vertexFormat = null;
+            this.createInfo = createInfo;
+            this.name = createInfo.name();
+
+            for (BackendRenderPipeline.CreateInfo.Shader shader : createInfo.shaders()) {
+                ShaderType type = shader.module().type();
+                if (type == ShaderType.VERTEX) {
+                    this.shadersSpirv.put(ShaderKind.VERTEX_SHADER, shader.module().spv());
+                    this.vertEntryPoint = shader.entryPoint();
+                } else if (type == ShaderType.FRAGMENT) {
+                    this.shadersSpirv.put(ShaderKind.FRAGMENT_SHADER, shader.module().spv());
+                    this.fragEntryPoint = shader.entryPoint();
+                }
+            }
+
+            List<BindGroupLayout.UniformDescription> uniforms = createInfo.uniforms();
+            int imageIdx = 0;
+            for (int binding = 0; binding < uniforms.size(); binding++) {
+                BindGroupLayout.UniformDescription desc = uniforms.get(binding);
+                switch (desc.type()) {
+                    case UNIFORM_BUFFER -> {
+                        UBO ubo = new UBO(desc.name(), binding, VK_SHADER_STAGE_ALL_GRAPHICS, 256, null);
+                        ubo.setUseGlobalBuffer(false);
+                        this.UBOs.add(ubo);
+                    }
+                    case COMBINED_IMAGE_SAMPLER -> {
+                        this.imageDescriptors.add(new ImageDescriptor(
+                                binding,
+                                "sampler2D",
+                                desc.name(),
+                                imageIdx++,
+                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                        ));
+                    }
+                    case TEXEL_BUFFER -> {
+                        this.imageDescriptors.add(new ImageDescriptor(
+                                binding,
+                                "samplerBuffer",
+                                desc.name(),
+                                imageIdx++,
+                                VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
+                        ));
+                    }
+                }
+            }
+
+            if (createInfo.pushConstantsSize() > 0) {
+                this.pushConstants = new PushConstants(VK_SHADER_STAGE_ALL_GRAPHICS, null, createInfo.pushConstantsSize());
+            }
         }
 
         public Builder(VertexFormat vertexFormat) {
@@ -256,11 +319,11 @@ public abstract class Pipeline {
         }
 
         public Builder(String name) {
-            this(null, name);
+            this((VertexFormat) null, name);
         }
 
         public Builder() {
-            this(null, null);
+            this((VertexFormat) null, null);
         }
 
         public void setUniforms(List<UBO> UBOs, List<ImageDescriptor> imageDescriptors) {

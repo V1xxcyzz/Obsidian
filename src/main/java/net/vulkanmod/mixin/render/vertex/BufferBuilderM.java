@@ -1,13 +1,13 @@
 package net.vulkanmod.mixin.render.vertex;
 
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import net.minecraft.client.model.geom.builders.UVPair;
-import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.util.LightCoordsUtil;
 import net.vulkanmod.interfaces.ExtendedVertexBuilder;
 import net.vulkanmod.mixin.matrix.PoseAccessor;
 import net.vulkanmod.render.util.MathUtil;
-import net.vulkanmod.render.vertex.format.I32_SNorm;
 import net.vulkanmod.vulkan.util.ColorUtil;
 import org.joml.Matrix4f;
 import org.joml.Vector3fc;
@@ -18,8 +18,14 @@ import org.spongepowered.asm.mixin.*;
 public abstract class BufferBuilderM
         implements VertexConsumer, ExtendedVertexBuilder {
 
-    @Shadow private boolean fastFormat;
-    @Shadow private boolean fullFormat;
+    private static final int SEMANTIC_COLOR = 1;
+    private static final int SEMANTIC_UV0 = 2;
+    private static final int SEMANTIC_UV1 = 3;
+    private static final int SEMANTIC_UV2 = 4;
+    private static final int SEMANTIC_NORMAL = 6;
+
+    @Shadow private boolean blockFormat;
+    @Shadow private boolean entityFormat;
     @Shadow private VertexFormat format;
 
     @Shadow protected abstract long beginVertex();
@@ -27,30 +33,33 @@ public abstract class BufferBuilderM
     @Shadow private int elementsToFill;
     @Shadow @Final private int initialElementsToFill;
 
-    @Shadow protected abstract long beginElement(VertexFormatElement vertexFormatElement);
+    @Shadow protected abstract long beginElement(int semanticId);
 
-    private long ptr;
+    @Unique private long ptr;
 
+    @Override
     public void vertex(float x, float y, float z, int packedColor, float u, float v, int overlay, int light, int packedNormal) {
         this.ptr = this.beginVertex();
 
-        if (this.format == DefaultVertexFormat.ENTITY) {
+        if (this.entityFormat) {
             MemoryUtil.memPutFloat(ptr + 0, x);
             MemoryUtil.memPutFloat(ptr + 4, y);
             MemoryUtil.memPutFloat(ptr + 8, z);
-
             MemoryUtil.memPutInt(ptr + 12, packedColor);
-
             MemoryUtil.memPutFloat(ptr + 16, u);
             MemoryUtil.memPutFloat(ptr + 20, v);
-
             MemoryUtil.memPutInt(ptr + 24, overlay);
-
             MemoryUtil.memPutInt(ptr + 28, light);
             MemoryUtil.memPutInt(ptr + 32, packedNormal);
-
-        }
-        else {
+        } else if (this.blockFormat) {
+            MemoryUtil.memPutFloat(ptr + 0, x);
+            MemoryUtil.memPutFloat(ptr + 4, y);
+            MemoryUtil.memPutFloat(ptr + 8, z);
+            MemoryUtil.memPutInt(ptr + 12, packedColor);
+            MemoryUtil.memPutFloat(ptr + 16, u);
+            MemoryUtil.memPutFloat(ptr + 20, v);
+            MemoryUtil.memPutInt(ptr + 24, light);
+        } else {
             this.elementsToFill = this.initialElementsToFill;
 
             this.position(x, y, z);
@@ -59,24 +68,19 @@ public abstract class BufferBuilderM
             this.fastOverlay(overlay);
             this.light(light);
             this.fastNormal(packedNormal);
-
-//            throw new RuntimeException("unaccepted format: " + this.format);
         }
-
     }
 
+    @Override
     public void vertex(float x, float y, float z, float u, float v, int packedColor, int light) {
         this.ptr = this.beginVertex();
 
         MemoryUtil.memPutFloat(ptr + 0, x);
         MemoryUtil.memPutFloat(ptr + 4, y);
         MemoryUtil.memPutFloat(ptr + 8, z);
-
         MemoryUtil.memPutFloat(ptr + 12, u);
         MemoryUtil.memPutFloat(ptr + 16, v);
-
         MemoryUtil.memPutInt(ptr + 20, packedColor);
-
         MemoryUtil.memPutInt(ptr + 24, light);
     }
 
@@ -87,14 +91,14 @@ public abstract class BufferBuilderM
     }
 
     public void fastColor(int packedColor) {
-        long ptr = this.beginElement(VertexFormatElement.COLOR);
+        long ptr = this.beginElement(SEMANTIC_COLOR);
         if (ptr != -1L) {
             MemoryUtil.memPutInt(ptr, packedColor);
         }
     }
 
     public void fastUv(float u, float v) {
-        long ptr = this.beginElement(VertexFormatElement.UV0);
+        long ptr = this.beginElement(SEMANTIC_UV0);
         if (ptr != -1L) {
             MemoryUtil.memPutFloat(ptr, u);
             MemoryUtil.memPutFloat(ptr + 4, v);
@@ -102,62 +106,29 @@ public abstract class BufferBuilderM
     }
 
     public void fastOverlay(int o) {
-        long ptr = this.beginElement(VertexFormatElement.UV1);
+        long ptr = this.beginElement(SEMANTIC_UV1);
         if (ptr != -1L) {
             MemoryUtil.memPutInt(ptr, o);
         }
     }
 
     public void light(int l) {
-        long ptr = this.beginElement(VertexFormatElement.UV2);
+        long ptr = this.beginElement(SEMANTIC_UV2);
         if (ptr != -1L) {
             MemoryUtil.memPutInt(ptr, l);
         }
     }
 
     public void fastNormal(int packedNormal) {
-        long ptr = this.beginElement(VertexFormatElement.NORMAL);
+        long ptr = this.beginElement(SEMANTIC_NORMAL);
         if (ptr != -1L) {
             MemoryUtil.memPutInt(ptr, packedNormal);
         }
     }
 
-    /**
-     * @author
-     */
-    @Overwrite
-    public void addVertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
-        if (this.fastFormat) {
-            long ptr = this.beginVertex();
-            MemoryUtil.memPutFloat(ptr + 0, x);
-            MemoryUtil.memPutFloat(ptr + 4, y);
-            MemoryUtil.memPutFloat(ptr + 8, z);
-
-            MemoryUtil.memPutInt(ptr + 12, color);
-
-            MemoryUtil.memPutFloat(ptr + 16, u);
-            MemoryUtil.memPutFloat(ptr + 20, v);
-
-            byte i;
-            if (this.fullFormat) {
-                MemoryUtil.memPutInt(ptr + 24, overlay);
-                i = 28;
-            } else {
-                i = 24;
-            }
-
-            MemoryUtil.memPutInt(ptr + i, light);
-
-            int temp = I32_SNorm.packNormal(normalX, normalY, normalZ);
-            MemoryUtil.memPutInt(ptr + i + 4, temp);
-        } else {
-            VertexConsumer.super.addVertex(x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
-        }
-    }
-
     @Override
     public VertexConsumer setColor(int r, int g, int b, int a) {
-        long m = this.beginElement(VertexFormatElement.COLOR);
+        long m = this.beginElement(SEMANTIC_COLOR);
         if (m != -1L) {
             int color = packRgba(r, g, b, a);
             MemoryUtil.memPutInt(m, color);
@@ -166,8 +137,8 @@ public abstract class BufferBuilderM
         return this;
     }
 
-    private final float[] brightness = new float[4];
-    private final int[] lights = new int[4];
+    @Unique private final float[] brightness = new float[4];
+    @Unique private final int[] lights = new int[4];
 
     public void putBulkData(PoseStack.Pose pose, BakedQuad bakedQuad, float r, float g, float b, float a, int light, int overlay) {
         brightness[0] = 1.0f; brightness[1] = 1.0f; brightness[2] = 1.0f; brightness[3] = 1.0f;
@@ -208,5 +179,4 @@ public abstract class BufferBuilderM
     private static int packRgba(int r, int g, int b, int a) {
         return (a & 0xFF) << 24 | (b & 0xFF) << 16 | (g & 0xFF) << 8 | (r & 0xFF);
     }
-
 }
