@@ -1,6 +1,7 @@
 package net.vulkanmod.render.chunk.build.task;
 
 import com.google.common.collect.Queues;
+import net.vulkanmod.Initializer;
 import net.vulkanmod.render.chunk.ChunkArea;
 import net.vulkanmod.render.chunk.ChunkAreaManager;
 import net.vulkanmod.render.chunk.RenderSection;
@@ -13,15 +14,18 @@ import net.vulkanmod.render.vertex.TerrainRenderType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TaskDispatcher {
-    private final Queue<CompileResult> compileResults = Queues.newLinkedBlockingDeque();
+    private final Queue<CompileResult> highPriorityResults = new ConcurrentLinkedQueue<>();
+    private final Queue<CompileResult> compileResults = new ConcurrentLinkedQueue<>();
     public final ThreadBuilderPack fixedBuffers;
 
     private volatile boolean stopThreads;
     private Thread[] threads;
     private BuilderResources[] resources;
-    private int idleThreads;
+    private final AtomicInteger idleThreads = new AtomicInteger(0);
     private final Queue<ChunkTask> highPriorityTasks = Queues.newConcurrentLinkedQueue();
     private final Queue<ChunkTask> lowPriorityTasks = Queues.newConcurrentLinkedQueue();
 
@@ -73,16 +77,23 @@ public class TaskDispatcher {
         while (!this.stopThreads) {
             ChunkTask task = this.pollTask();
 
-            if (task == null)
+            if (task == null) {
                 synchronized (this) {
-                    try {
-                        this.idleThreads++;
-                        this.wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                    // Re-check inside lock to avoid lost wakeups
+                    task = this.pollTask();
+                    if (task == null && !this.stopThreads) {
+                        this.idleThreads.incrementAndGet();
+                        try {
+                            this.wait();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException(e);
+                        } finally {
+                            this.idleThreads.decrementAndGet();
+                        }
                     }
-                    this.idleThreads--;
                 }
+            }
 
             if (task == null)
                 continue;
@@ -102,8 +113,10 @@ public class TaskDispatcher {
             this.lowPriorityTasks.offer(chunkTask);
         }
 
-        synchronized (this) {
-            this.notify();
+        if (this.idleThreads.get() > 0) {
+            synchronized (this) {
+                this.notify();
+            }
         }
     }
 
@@ -140,16 +153,41 @@ public class TaskDispatcher {
     public boolean updateSections() {
         CompileResult result;
         boolean flag = false;
-        while ((result = this.compileResults.poll()) != null) {
+
+        // Always drain player-triggered high-priority updates immediately
+        while ((result = this.highPriorityResults.poll()) != null) {
             flag = true;
             doSectionUpdate(result);
+        }
+
+        int budgetMs = Initializer.CONFIG.chunkUploadBudgetMs;
+        if (budgetMs <= 0) {
+            while ((result = this.compileResults.poll()) != null) {
+                flag = true;
+                doSectionUpdate(result);
+            }
+        } else {
+            long deadlineNs = System.nanoTime() + (budgetMs * 1_000_000L);
+            int uploaded = 0;
+            while ((result = this.compileResults.poll()) != null) {
+                flag = true;
+                doSectionUpdate(result);
+                uploaded++;
+                if (uploaded >= 1 && System.nanoTime() >= deadlineNs) {
+                    break;
+                }
+            }
         }
 
         return flag;
     }
 
     public void scheduleSectionUpdate(CompileResult compileResult) {
-        this.compileResults.add(compileResult);
+        if (compileResult.highPriority) {
+            this.highPriorityResults.offer(compileResult);
+        } else {
+            this.compileResults.offer(compileResult);
+        }
     }
 
     private void doSectionUpdate(CompileResult compileResult) {
@@ -187,7 +225,9 @@ public class TaskDispatcher {
     }
 
     public boolean isIdle() {
-        return this.idleThreads == this.threads.length && this.compileResults.isEmpty();
+        return this.idleThreads.get() == this.threads.length
+                && this.compileResults.isEmpty()
+                && this.highPriorityResults.isEmpty();
     }
 
     public void clearBatchQueue() {
@@ -208,7 +248,7 @@ public class TaskDispatcher {
 
     public String getStats() {
         int taskCount = highPriorityTasks.size() + lowPriorityTasks.size();
-        return String.format("iT: %d Ts: %d", this.idleThreads, taskCount);
+        return String.format("iT: %d Ts: %d", this.idleThreads.get(), taskCount);
     }
 
     public BuilderResources[] getResourcesArray() {

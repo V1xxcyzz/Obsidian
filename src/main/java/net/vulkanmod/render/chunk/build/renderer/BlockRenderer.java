@@ -5,9 +5,11 @@ import net.fabricmc.fabric.api.renderer.v1.mesh.ShadeMode;
 import net.fabricmc.fabric.api.util.TriState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.SingleThreadedRandomSource;
@@ -27,15 +29,21 @@ import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.util.ColorUtil;
 import org.joml.Vector3f;
 
+import java.util.function.Predicate;
+
 public class BlockRenderer extends AbstractBlockRenderContext {
     private Vector3f pos;
 
     private BuilderResources resources;
     private TerrainBuilder terrainBuilder;
+    private BlockRenderDispatcher blockRenderDispatcher;
+    private final Predicate<Direction> faceCullPredicate = this::isFaceCulled;
 
     final boolean backFaceCulling = Initializer.CONFIG.backFaceCulling;
 
     private TerrainRenderType renderType;
+    private int lastCachedSpriteIdx = -1;
+    private net.vulkanmod.render.texture.SpriteUpdateUtil.AnimatedSpriteEntry lastCachedSpriteEntry;
 
     public void setResources(BuilderResources resources) {
         this.resources = resources;
@@ -60,15 +68,19 @@ public class BlockRenderer extends AbstractBlockRenderContext {
         this.terrainBuilder = this.resources.builderPack.builder(renderType);
         this.terrainBuilder.setBlockAttributes(blockState);
 
-        BlockStateModel model = Minecraft.getInstance().getBlockRenderer().getBlockModel(blockState);
+        if (this.blockRenderDispatcher == null) {
+            this.blockRenderDispatcher = Minecraft.getInstance().getBlockRenderer();
+        }
+        BlockStateModel model = this.blockRenderDispatcher.getBlockModel(blockState);
 
-        BlockAndTintGetter renderRegion = this.renderRegion;
-        Vec3 offset = blockState.getOffset(blockPos);
-        pos.add((float) offset.x, (float) offset.y, (float) offset.z);
+        if (blockState.hasOffsetFunction()) {
+            Vec3 offset = blockState.getOffset(blockPos);
+            pos.add((float) offset.x, (float) offset.y, (float) offset.z);
+        }
 
         this.prepareForBlock(blockState, blockPos, blockState.getLightEmission() == 0);
 
-        model.emitQuads(this.getEmitter(), renderRegion, blockPos, blockState, this.random, this::isFaceCulled);
+        model.emitQuads(this.getEmitter(), this.renderRegion, blockPos, blockState, this.random, this.faceCullPredicate);
     }
 
     @Override
@@ -120,6 +132,21 @@ public class BlockRenderer extends AbstractBlockRenderContext {
 
         // Rotate triangles if needed to fix AO anisotropy
         int idx = QuadUtils.getIterationStartIdx(brightnessArr, lights);
+
+        if (net.vulkanmod.Initializer.CONFIG.animateOnlyVisibleTextures) {
+            float u0 = quad.getU(0);
+            float v0 = quad.getV(0);
+            if (this.lastCachedSpriteEntry != null && this.lastCachedSpriteEntry.contains(u0, v0)) {
+                this.resources.animatedSpriteBits.set(this.lastCachedSpriteIdx);
+            } else {
+                int spriteIdx = net.vulkanmod.render.texture.SpriteUpdateUtil.findAnimatedSpriteIndex(u0, v0);
+                if (spriteIdx >= 0) {
+                    this.lastCachedSpriteIdx = spriteIdx;
+                    this.lastCachedSpriteEntry = net.vulkanmod.render.texture.SpriteUpdateUtil.getBlockAnimatedSprites()[spriteIdx];
+                    this.resources.animatedSpriteBits.set(spriteIdx);
+                }
+            }
+        }
 
         bufferBuilder.ensureCapacity();
 

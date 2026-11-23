@@ -56,6 +56,7 @@ public class BuildTask extends ChunkTask {
         compiledSection.blockEntities.addAll(compileResult.blockEntities);
         compiledSection.transparencyState = compileResult.transparencyState;
         compiledSection.isCompletelyEmpty = compileResult.renderedLayers.isEmpty();
+        compiledSection.animatedSpriteIndices = net.vulkanmod.render.texture.SpriteUpdateUtil.toIntArray(builderResources.animatedSpriteBits);
         compileResult.compiledSection = compiledSection;
 
         if (this.cancelled.get()) {
@@ -75,6 +76,7 @@ public class BuildTask extends ChunkTask {
 
     private CompileResult compile(float camX, float camY, float camZ, BuilderResources builderResources) {
         CompileResult compileResult = new CompileResult(this.section, true);
+        compileResult.highPriority = this.highPriority;
 
         BlockPos startBlockPos = new BlockPos(section.xOffset(), section.yOffset(), section.zOffset()).immutable();
         VisGraph visGraph = new VisGraph();
@@ -88,9 +90,10 @@ public class BuildTask extends ChunkTask {
         ThreadBuilderPack bufferBuilders = builderResources.builderPack;
         setupBufferBuilders(bufferBuilders);
 
-        this.region.loadBlockStates();
+        this.region.loadBlockStates(builderResources.blockDataBuffer);
         this.region.initTintCache(builderResources.tintCache);
 
+        builderResources.animatedSpriteBits.clear();
         builderResources.update(this.region, this.section);
 
         BlockRenderer blockRenderer = builderResources.blockRenderer;
@@ -98,13 +101,20 @@ public class BuildTask extends ChunkTask {
         FluidRenderer fluidRenderer = builderResources.fluidRenderer;
 
         BlockPos.MutableBlockPos blockPos = new BlockPos.MutableBlockPos();
+        final int baseX = section.xOffset();
+        final int baseY = section.yOffset();
+        final int baseZ = section.zOffset();
 
         for (int y = 0; y < 16; ++y) {
             for (int z = 0; z < 16; ++z) {
                 for (int x = 0; x < 16; ++x) {
-                    blockPos.set(section.xOffset() + x, section.yOffset() + y, section.zOffset() + z);
+                    BlockState blockState = this.region.getBlockStateUnchecked(x, y, z);
+                    if (blockState.isAir()) {
+                        continue;
+                    }
 
-                    BlockState blockState = this.region.getBlockState(blockPos);
+                    blockPos.set(baseX + x, baseY + y, baseZ + z);
+
                     if (blockState.isSolidRender()) {
                         visGraph.setOpaque(blockPos);
                     }
@@ -122,7 +132,7 @@ public class BuildTask extends ChunkTask {
                     }
 
                     if (blockState.getRenderShape() == RenderShape.MODEL) {
-                        pos.set(blockPos.getX() & 15, blockPos.getY() & 15, blockPos.getZ() & 15);
+                        pos.set(x, y, z);
                         blockRenderer.renderBlock(blockState, blockPos, pos);
                     }
                 }
@@ -139,10 +149,12 @@ public class BuildTask extends ChunkTask {
         for (TerrainRenderType renderType : TerrainRenderType.VALUES) {
             TerrainBuilder builder = bufferBuilders.builder(renderType);
 
-            TerrainBuilder.DrawState drawState = builder.endDrawing();
+            if (builder.hasVertices()) {
+                TerrainBuilder.DrawState drawState = builder.endDrawing();
 
-            UploadBuffer uploadBuffer = new UploadBuffer(builder, drawState);
-            compileResult.renderedLayers.put(renderType, uploadBuffer);
+                UploadBuffer uploadBuffer = new UploadBuffer(builder, drawState);
+                compileResult.renderedLayers.put(renderType, uploadBuffer);
+            }
 
             builder.clear();
         }

@@ -72,25 +72,28 @@ public class VOptionScreen extends Screen {
         }
 
         int top = 32;
-        int bottom = 60;
+        int bottom = 36;
         int itemHeight = 20;
 
-        int leftMargin = MARGIN + VGuiConstants.PAGE_BUTTON_WIDTH + 6;
-        int listWidth = Math.min(this.width - leftMargin - MARGIN, 420);
+        int leftMargin = MARGIN;
+        int listWidth = Math.min(Math.max(240, (int) (this.width * 0.56f)), 380);
+        if (leftMargin + listWidth + MARGIN > this.width) {
+            listWidth = this.width - leftMargin - MARGIN;
+        }
         int listHeight = this.height - top - bottom;
 
         this.buildLists(leftMargin, top, listWidth, listHeight, itemHeight);
 
         this.searchField = createSearchField();
 
-        int x = leftMargin + listWidth + 6;
-        int tooltipWidth = Math.min(this.width - x - 10, 420);
-        int y = top + itemHeight + 6;
+        int x = leftMargin + listWidth + 10;
+        int tooltipWidth = Math.min(this.width - x - MARGIN, 280);
+        int y = top + 4;
 
-        if (tooltipWidth < 200) {
-            x = leftMargin + 3;
-            tooltipWidth = listWidth;
-            y = this.height - bottom + 10;
+        if (tooltipWidth < 140) {
+            x = leftMargin + 4;
+            tooltipWidth = listWidth - 8;
+            y = this.height - bottom - 48;
         }
 
         this.tooltipX = x;
@@ -114,23 +117,19 @@ public class VOptionScreen extends Screen {
     }
 
     private VTextInputWidget createSearchField() {
-        int rightMargin = 10;
-        int padding = 10;
-        int kofiWidth = Minecraft.getInstance().font.width(Component.translatable("vulkanmod.options.buttons.kofi")) + padding;
-        int topBarRight = this.width - kofiWidth - rightMargin;
-
-        if (UpdateChecker.isUpdateAvailable()) {
-            int updateWidth = minecraft.font.width(Component.translatable("vulkanmod.options.buttons.update_available")) + padding;
-            topBarRight -= updateWidth + VGuiConstants.WIDGET_MARGIN;
+        int rightMargin = MARGIN;
+        int tabsEndX = MARGIN;
+        for (OptionPage page : this.optionPages) {
+            tabsEndX += Math.max(52, this.font.width(page.name) + 18) + 2;
         }
 
-
-        int leftMargin = VGuiConstants.PAGE_BUTTON_WIDTH + MARGIN + 6;
-        int width = Math.min(topBarRight - leftMargin - 4, 413);
+        int availableWidth = this.width - tabsEndX - rightMargin - 6;
+        int searchWidth = Math.min(Math.max(100, availableWidth), 170);
+        int searchX = this.width - searchWidth - rightMargin;
 
         return new VTextInputWidget(
-                leftMargin, 4,
-                width, VGuiConstants.WIDGET_HEIGHT,
+                searchX, 6,
+                searchWidth, VGuiConstants.WIDGET_HEIGHT,
                 Component.translatable("vulkanmod.options.searchFieldPlaceholder"),
                 widget -> performSearch(widget.getInput())
         );
@@ -197,10 +196,13 @@ public class VOptionScreen extends Screen {
         );
 
         int top = 32;
-        int bottom = 60;
+        int bottom = 36;
         int itemHeight = 20;
-        int leftMargin = MARGIN + VGuiConstants.PAGE_BUTTON_WIDTH + 6;
-        int listWidth = Math.min(this.width - leftMargin - MARGIN, 420);
+        int leftMargin = MARGIN;
+        int listWidth = Math.min(Math.max(240, (int) (this.width * 0.56f)), 380);
+        if (leftMargin + listWidth + MARGIN > this.width) {
+            listWidth = this.width - leftMargin - MARGIN;
+        }
         int listHeight = this.height - top - bottom;
 
         searchResultsPage.createList(leftMargin, top, listWidth, listHeight, itemHeight);
@@ -220,27 +222,24 @@ public class VOptionScreen extends Screen {
 
         this.clearWidgets();
 
-        int x = MARGIN;
-        int y = 4;
-
-        int width = VGuiConstants.PAGE_BUTTON_WIDTH;
+        // Sodium-style horizontal top tab bar
+        int tabX = MARGIN;
+        int tabY = 6;
         int j = 0;
         for (var modEntry : this.modSettingsEntries) {
-            ModIconWidget iconWidget = new ModIconWidget(modEntry.modName, modEntry.getIcon(), x, y, width, 28);
-            this.iconWidgets.add(iconWidget);
-            this.addWidget(iconWidget);
-            y += 28;
-
             var pages = modEntry.getPages();
             for (OptionPage page : pages) {
                 final int finalIdx = j;
-                VButtonWidget widget = new VButtonWidget(x, y, width, VGuiConstants.WIDGET_HEIGHT, Component.nullToEmpty(page.name), button -> this.setOptionList(finalIdx));
-                widget.setTextLayout(false, 12);
+                int tabWidth = Math.max(52, this.font.width(page.name) + 18);
+                VButtonWidget widget = new VButtonWidget(tabX, tabY, tabWidth, VGuiConstants.WIDGET_HEIGHT,
+                        Component.nullToEmpty(page.name), button -> this.setOptionList(finalIdx));
+                widget.setTabStyle(true);
+                widget.setTextLayout(true, 0);
                 this.buttons.add(widget);
                 this.pageButtons.add(widget);
                 this.addWidget(widget);
 
-                y += VGuiConstants.WIDGET_HEIGHT;
+                tabX += tabWidth + 2;
                 j++;
             }
         }
@@ -268,11 +267,11 @@ public class VOptionScreen extends Screen {
 
     @SuppressWarnings("DuplicatedCode")
     private void addButtonsWithSearchBar() {
-        int rightMargin = 10;
+        int rightMargin = MARGIN;
         int padding = 10;
         int buttonWidth = Minecraft.getInstance().font.width(CommonComponents.GUI_DONE) + 2 * padding;
         int x0 = (this.width - buttonWidth - rightMargin);
-        int y0 = this.height - VGuiConstants.WIDGET_HEIGHT - 7;
+        int y0 = this.height - VGuiConstants.WIDGET_HEIGHT - 8;
 
         VButtonWidget doneButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
                 CommonComponents.GUI_DONE, button -> Minecraft.getInstance().setScreen(this.parent));
@@ -287,36 +286,14 @@ public class VOptionScreen extends Screen {
         this.undoButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
                 Component.translatable("vulkanmod.options.buttons.undo"), button -> undo());
 
-        int kofiWidth = Minecraft.getInstance().font.width(Component.translatable("vulkanmod.options.buttons.kofi")) + padding;
-
-        int kofiX = this.width - kofiWidth - rightMargin;
-        VButtonWidget supportButton = new VButtonWidget(kofiX, 4, kofiWidth, VGuiConstants.WIDGET_HEIGHT,
-                Component.translatable("vulkanmod.options.buttons.kofi"),
-                button -> Util.getPlatform().openUri("https://ko-fi.com/xcollateral"));
-
         this.buttons.add(this.applyButton);
         this.buttons.add(doneButton);
-        this.buttons.add(supportButton);
         this.buttons.add(this.undoButton);
 
         this.addWidget(this.applyButton);
         this.addWidget(doneButton);
-        this.addWidget(supportButton);
         this.addWidget(this.undoButton);
         this.addWidget(this.searchField);
-
-        if (UpdateChecker.isUpdateAvailable()) {
-            assert minecraft != null;
-            int updateWidth = minecraft.font.width(Component.translatable("vulkanmod.options.buttons.update_available")) + padding;
-            var updateButton = new VButtonWidget(
-                    kofiX - updateWidth - VGuiConstants.WIDGET_MARGIN, 4,
-                    updateWidth, VGuiConstants.WIDGET_HEIGHT,
-                    Component.translatable("vulkanmod.options.buttons.update_available").withStyle(ChatFormatting.UNDERLINE),
-                    button -> Util.getPlatform().openUri("https://modrinth.com/mod/vulkanmod")
-            );
-            this.buttons.add(updateButton);
-            this.addWidget(updateButton);
-        }
     }
 
     @Override
@@ -403,20 +380,18 @@ public class VOptionScreen extends Screen {
 
         int lines = list.size();
 
-        int padding = 3;
+        int padding = 6;
         int width = GuiRenderer.getMaxTextWidth(this.font, list);
-        int height = lines * 10;
-        float intensity = 0.05f;
-        int color = ColorUtil.ARGB.pack(intensity, intensity, intensity, 0.6f);
-        GuiRenderer.fill(x - padding, y - padding, x + width + padding, y + height + padding, color);
+        int height = lines * 11;
 
-        color = VGuiConstants.COLOR_RED;
-        GuiRenderer.renderBorder(x - padding, y - padding, x + width + padding, y + height + padding, 1, color);
+        GuiRenderer.fill(x - padding, y - padding, x + width + padding, y + height + padding, VGuiConstants.COLOR_TOOLTIP_BG);
+        GuiRenderer.renderBorder(x - padding, y - padding, x + width + padding, y + height + padding, 1, VGuiConstants.COLOR_BORDER_SUBTLE);
+        GuiRenderer.fill(x - padding, y - padding, x - padding + 2, y + height + padding, VGuiConstants.COLOR_ACCENT);
 
-        int yOffset = 0;
+        int yOffset = 1;
         for (var text : list) {
-            GuiRenderer.drawString(this.font, text, x, y + yOffset, 0xffffffff);
-            yOffset += 10;
+            GuiRenderer.drawString(this.font, text, x + 1, y + yOffset, 0xFFEAEAF0);
+            yOffset += 11;
         }
     }
 

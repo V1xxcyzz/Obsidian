@@ -30,6 +30,14 @@ public class Config {
     public boolean backFaceCulling = true;
     public boolean textureAnimations = true;
 
+    public boolean asyncChunkUploads = true;
+    public int chunkUploadBudgetMs = 2;
+    public boolean fastTerrainSampling = false;
+    public boolean persistentPipelineCache = true;
+    public boolean animateOnlyVisibleTextures = true;
+    public boolean blockEntityCulling = true;
+    public int hudMode = 0;
+
     public void write() {
         if (!Files.exists(CONFIG_PATH.getParent())) {
             try {

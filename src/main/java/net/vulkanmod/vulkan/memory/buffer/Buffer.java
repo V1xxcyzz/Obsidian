@@ -39,7 +39,7 @@ public class Buffer {
         }
 
         if (this.type.mappable()) {
-            this.dataPtr = MemoryManager.getInstance().Map(this.allocation).get(0);
+            this.dataPtr = MemoryManager.getInstance().mapPointer(this.allocation);
         }
     }
 

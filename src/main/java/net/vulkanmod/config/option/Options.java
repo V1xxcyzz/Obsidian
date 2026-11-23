@@ -189,7 +189,17 @@ public abstract class Options {
                                 .setTranslator(AttackIndicatorStatus::caption),
                         new SwitchOption(Component.translatable("options.autosaveIndicator"),
                                 value -> mcOptions.showAutosaveIndicator().set(value),
-                                () -> mcOptions.showAutosaveIndicator().get())
+                                () -> mcOptions.showAutosaveIndicator().get()),
+                        new CyclingOption<>(Component.translatable("vulkanmod.options.hudMode"),
+                                new Integer[]{0, 1, 2},
+                                value -> config.hudMode = value,
+                                () -> config.hudMode)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "vulkanmod.options.hudMode.fps";
+                                    case 2 -> "vulkanmod.options.hudMode.detailed";
+                                    default -> "options.off";
+                                }))
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.hudMode.tooltip"))
                 })
         };
     }
@@ -385,6 +395,11 @@ public abstract class Options {
                                 () -> config.entityCulling)
                                 .setTooltip(v -> Component.translatable("vulkanmod.options.entityCulling.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH),
+                        new SwitchOption(Component.translatable("vulkanmod.options.blockEntityCulling"),
+                                v -> config.blockEntityCulling = v,
+                                () -> config.blockEntityCulling)
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.blockEntityCulling.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM),
                         new SwitchOption(Component.translatable("vulkanmod.options.uniqueOpaqueLayer"),
                                 v -> {
                                     config.uniqueOpaqueLayer = v;
@@ -407,6 +422,35 @@ public abstract class Options {
                                 () -> config.indirectDraw)
                                 .setTooltip(v -> Component.translatable("vulkanmod.options.indirectDraw.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH)
+                }),
+                new OptionBlock("", new Option<?>[]{
+                        new SwitchOption(Component.translatable("vulkanmod.options.asyncChunkUploads"),
+                                v -> config.asyncChunkUploads = v,
+                                () -> config.asyncChunkUploads)
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.asyncChunkUploads.tooltip"))
+                                .setImpact(PerformanceImpact.HIGH),
+                        new CyclingOption<>(Component.translatable("vulkanmod.options.chunkUploadBudget"),
+                                new Integer[]{0, 1, 2, 4, 8},
+                                value -> config.chunkUploadBudgetMs = value,
+                                () -> config.chunkUploadBudgetMs)
+                                .setTranslator(v -> v == 0
+                                        ? Component.translatable("vulkanmod.options.chunkUploadBudget.unlimited")
+                                        : Component.literal(v + " ms"))
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.chunkUploadBudget.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM),
+                        new SwitchOption(Component.translatable("vulkanmod.options.fastTerrainSampling"),
+                                v -> {
+                                    config.fastTerrainSampling = v;
+                                    WorldRenderer.getInstance().resetSampler();
+                                },
+                                () -> config.fastTerrainSampling)
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.fastTerrainSampling.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM),
+                        new SwitchOption(Component.translatable("vulkanmod.options.animateOnlyVisibleTextures"),
+                                v -> config.animateOnlyVisibleTextures = v,
+                                () -> config.animateOnlyVisibleTextures)
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.animateOnlyVisibleTextures.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM)
                 })
         };
     }
@@ -434,7 +478,12 @@ public abstract class Options {
                                 .setTooltip(v -> Component.translatable("vulkanmod.options.frameQueue.tooltip")),
                         new SwitchOption(Component.translatable("vulkanmod.options.textureAnimations"),
                                 v -> config.textureAnimations = v,
-                                () -> config.textureAnimations)
+                                () -> config.textureAnimations),
+                        new SwitchOption(Component.translatable("vulkanmod.options.persistentPipelineCache"),
+                                v -> config.persistentPipelineCache = v,
+                                () -> config.persistentPipelineCache)
+                                .setTooltip(v -> Component.translatable("vulkanmod.options.persistentPipelineCache.tooltip"))
+                                .setImpact(PerformanceImpact.LOW)
                 }),
                 new OptionBlock("", new Option<?>[]{
                         new SwitchOption(Component.translatable("vulkanmod.options.wayland"),

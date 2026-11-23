@@ -29,6 +29,7 @@ public class RenderSection {
     public short lastFrame = -1;
     private short lastFrame2 = -1;
     public short inAreaIndex;
+    public int lastSpriteMarkTick = -1;
 
     public byte adjDirs;
     public RenderSection
@@ -291,19 +292,29 @@ public class RenderSection {
     }
 
     public void resetDrawParameters(TerrainRenderType renderType) {
+        DrawBuffers drawBuffers = this.chunkArea.getDrawBuffers();
+        AreaBuffer areaBuffer = drawBuffers.getAreaBuffer(renderType);
+        AreaBuffer indexBuffer = renderType == TerrainRenderType.TRANSLUCENT ? drawBuffers.getIndexBuffer() : null;
+        boolean freedVertex = false;
+
         for (int i = 0; i < QuadFacing.COUNT; ++i) {
-            DrawBuffers drawBuffers = this.chunkArea.getDrawBuffers();
             long ptr = DrawParametersBuffer.getParamsPtr(drawBuffers.getDrawParamsPtr(), this.inAreaIndex, renderType.ordinal(), i);
 
-            AreaBuffer areaBuffer = drawBuffers.getAreaBuffer(renderType);
-            int vertexOffset = DrawParametersBuffer.getVertexOffset(ptr);
-            if (areaBuffer != null && vertexOffset != -1) {
-                int segmentOffset = vertexOffset * drawBuffers.vertexSize;
-                areaBuffer.setSegmentFree(segmentOffset);
+            if (!freedVertex && areaBuffer != null) {
+                int vertexOffset = DrawParametersBuffer.getVertexOffset(ptr);
+                if (vertexOffset != -1) {
+                    areaBuffer.freeSegment(vertexOffset);
+                    freedVertex = true;
+                }
+            }
+
+            if (indexBuffer != null && i == QuadFacing.UNDEFINED.ordinal() && DrawParametersBuffer.getIndexCount(ptr) > 0) {
+                indexBuffer.freeSegment(DrawParametersBuffer.getFirstIndex(ptr));
             }
 
             DrawParametersBuffer.resetParameters(ptr);
         }
+        drawBuffers.invalidateIndirectCache(renderType);
     }
 
     public void setChunkArea(ChunkArea chunkArea) {

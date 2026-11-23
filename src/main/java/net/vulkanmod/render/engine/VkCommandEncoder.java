@@ -7,7 +7,10 @@ import com.mojang.blaze3d.opengl.*;
 import com.mojang.blaze3d.pipeline.BlendFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.platform.DestFactor;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.platform.PolygonMode;
+import com.mojang.blaze3d.platform.SourceFactor;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.GpuQuery;
 import com.mojang.blaze3d.systems.RenderPass;
@@ -15,6 +18,7 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.logging.LogUtils;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.ARGB;
 import net.vulkanmod.gl.VkGlFramebuffer;
@@ -33,6 +37,7 @@ import net.vulkanmod.vulkan.queue.CommandPool;
 import net.vulkanmod.vulkan.queue.GraphicsQueue;
 import net.vulkanmod.vulkan.shader.GraphicsPipeline;
 import net.vulkanmod.vulkan.shader.Pipeline;
+import net.vulkanmod.vulkan.shader.PipelineState;
 import net.vulkanmod.vulkan.shader.descriptor.ImageDescriptor;
 import net.vulkanmod.vulkan.shader.descriptor.UBO;
 import net.vulkanmod.vulkan.texture.ImageUtil;
@@ -57,6 +62,11 @@ public class VkCommandEncoder implements CommandEncoder {
     private static final Logger LOGGER = LogUtils.getLogger();
     private final VkGpuDevice device;
 
+    private static final java.nio.LongBuffer VERTEX_BUFFERS = MemoryUtil.memAllocLong(1);
+    private static final java.nio.LongBuffer VERTEX_OFFSETS = MemoryUtil.memAllocLong(1);
+    private static final long P_VERTEX_BUFFERS = MemoryUtil.memAddress0(VERTEX_BUFFERS);
+    private static final long P_VERTEX_OFFSETS = MemoryUtil.memAddress0(VERTEX_OFFSETS);
+
     @Nullable
     private RenderPipeline lastPipeline;
     private boolean inRenderPass;
@@ -66,8 +76,39 @@ public class VkCommandEncoder implements CommandEncoder {
 
     private int framebufferId = VkGlFramebuffer.genFramebufferId();
 
+    // Cached Vulkan command buffer bindings to eliminate redundant binds across draws
+    private VkCommandBuffer lastCmdBuffer;
+    private int lastBufferBindEpoch = -1;
+    private long boundVertexBufferId = 0L;
+    private long boundVertexOffset = -1L;
+    private long boundIndexBufferId = 0L;
+    private long boundIndexOffset = -1L;
+    private int boundIndexType = -1;
+
+    // Tracks buffers written in the active transfer command buffer to avoid unnecessary barriers
+    private CommandPool.CommandBuffer trackedTransferCb;
+    private final LongOpenHashSet dirtyTransferBuffers = new LongOpenHashSet();
+
     protected VkCommandEncoder(VkGpuDevice glDevice) {
         this.device = glDevice;
+    }
+
+    public void invalidateCachedState() {
+        this.lastPipeline = null;
+        this.lastCmdBuffer = null;
+        this.lastBufferBindEpoch = -1;
+        this.boundVertexBufferId = 0L;
+        this.boundVertexOffset = -1L;
+        this.boundIndexBufferId = 0L;
+        this.boundIndexOffset = -1L;
+        this.boundIndexType = -1;
+    }
+
+    private void trackTransferCb(CommandPool.CommandBuffer transferCb) {
+        if (this.trackedTransferCb != transferCb || !transferCb.isRecording()) {
+            this.trackedTransferCb = transferCb;
+            this.dirtyTransferBuffers.clear();
+        }
     }
 
     @Override
@@ -85,6 +126,11 @@ public class VkCommandEncoder implements CommandEncoder {
             }
 
             if (Minecraft.getInstance().getMainRenderTarget().getColorTexture() == colorAttachmentView.texture()) {
+                this.boundVertexBufferId = 0L;
+                this.boundVertexOffset = -1L;
+                this.boundIndexBufferId = 0L;
+                this.boundIndexOffset = -1L;
+                this.boundIndexType = -1;
                 Renderer.getInstance().getMainPass().rebindMainTarget();
 
                 int j = 0;
@@ -291,8 +337,10 @@ public class VkCommandEncoder implements CommandEncoder {
                     );
                 } else {
                     long dstOffset = gpuBufferSlice.offset();
+                    long dstId = vkGpuBuffer.buffer.getId();
 
                     var commandBuffer = Renderer.getInstance().getTransferCb();
+                    trackTransferCb(commandBuffer);
 
                     StagingBuffer stagingBuffer = Vulkan.getStagingBuffer();
                     stagingBuffer.copyBuffer(size, byteBuffer);
@@ -304,30 +352,33 @@ public class VkCommandEncoder implements CommandEncoder {
                             commandBuffer.begin(stack);
                         }
 
-                        VkMemoryBarrier.Buffer barrier = VkMemoryBarrier.calloc(1, stack);
-                        barrier.sType$Default();
+                        // Only emit a targeted buffer barrier when this same buffer was already written in this transfer batch
+                        if (!this.dirtyTransferBuffers.add(dstId)) {
+                            VkBufferMemoryBarrier.Buffer bufferMemoryBarriers = VkBufferMemoryBarrier.calloc(1, stack);
+                            VkBufferMemoryBarrier bufferMemoryBarrier = bufferMemoryBarriers.get(0);
+                            bufferMemoryBarrier.sType$Default();
+                            bufferMemoryBarrier.srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
+                            bufferMemoryBarrier.dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
+                            bufferMemoryBarrier.buffer(dstId);
+                            bufferMemoryBarrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+                            bufferMemoryBarrier.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+                            bufferMemoryBarrier.offset(0);
+                            bufferMemoryBarrier.size(VK_WHOLE_SIZE);
 
-                        VkBufferMemoryBarrier.Buffer bufferMemoryBarriers = VkBufferMemoryBarrier.calloc(1, stack);
-                        VkBufferMemoryBarrier bufferMemoryBarrier = bufferMemoryBarriers.get(0);
-                        bufferMemoryBarrier.sType$Default();
-                        bufferMemoryBarrier.buffer(vkGpuBuffer.buffer.getId());
-                        bufferMemoryBarrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
-                        bufferMemoryBarrier.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
-                        bufferMemoryBarrier.size(VK_WHOLE_SIZE);
-
-                        vkCmdPipelineBarrier(commandBuffer.handle,
-                                             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                             0,
-                                             barrier,
-                                             bufferMemoryBarriers,
-                                             null);
+                            vkCmdPipelineBarrier(commandBuffer.handle,
+                                                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                 0,
+                                                 null,
+                                                 bufferMemoryBarriers,
+                                                 null);
+                        }
 
                         VkBufferCopy.Buffer copyRegion = VkBufferCopy.calloc(1, stack);
                         copyRegion.size(size);
                         copyRegion.srcOffset(srcOffset);
                         copyRegion.dstOffset(dstOffset);
 
-                        vkCmdCopyBuffer(commandBuffer.handle, stagingBuffer.getId(), vkGpuBuffer.buffer.getId(), copyRegion);
+                        vkCmdCopyBuffer(commandBuffer.handle, stagingBuffer.getId(), dstId, copyRegion);
                     }
                 }
             }
@@ -404,11 +455,58 @@ public class VkCommandEncoder implements CommandEncoder {
                     long var10002 = gpuBufferSlice2.length();
                     throw new IllegalArgumentException("Cannot copy more data than the target buffer can hold (attempting to copy " + var10002 + " bytes at offset " + gpuBufferSlice2.offset() + " to " + vkGpuBuffer2.size() + " size buffer)");
                 } else {
-//                    this.device.directStateAccess().copyBufferSubData(vkGpuBuffer.handle, vkGpuBuffer2.handle, gpuBufferSlice.offset(), gpuBufferSlice2.offset(), gpuBufferSlice.length());
-//                    vkGpuBuffer.buffer.copyBuffer(byteBuffer, byteBuffer.remaining(), gpuBufferSlice.offset());
+                    long srcId = vkGpuBuffer.buffer.getId();
+                    long dstId = vkGpuBuffer2.buffer.getId();
 
-                    // TODO
-                    throw new UnsupportedOperationException();
+                    var commandBuffer = Renderer.getInstance().getTransferCb();
+                    trackTransferCb(commandBuffer);
+
+                    try (MemoryStack stack = MemoryStack.stackPush()) {
+                        if (!commandBuffer.isRecording()) {
+                            commandBuffer.begin(stack);
+                        }
+
+                        if (this.dirtyTransferBuffers.contains(srcId)) {
+                            VkBufferMemoryBarrier.Buffer barrier = VkBufferMemoryBarrier.calloc(1, stack);
+                            barrier.get(0)
+                                   .sType$Default()
+                                   .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                   .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                   .buffer(srcId)
+                                   .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                                   .dstAccessMask(VK_ACCESS_TRANSFER_READ_BIT)
+                                   .offset(gpuBufferSlice.offset())
+                                   .size(gpuBufferSlice.length());
+
+                            vkCmdPipelineBarrier(commandBuffer.handle,
+                                                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                 0, null, barrier, null);
+                        }
+
+                        if (!this.dirtyTransferBuffers.add(dstId)) {
+                            VkBufferMemoryBarrier.Buffer barrier = VkBufferMemoryBarrier.calloc(1, stack);
+                            barrier.get(0)
+                                   .sType$Default()
+                                   .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                   .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                   .buffer(dstId)
+                                   .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                                   .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                                   .offset(gpuBufferSlice2.offset())
+                                   .size(gpuBufferSlice2.length());
+
+                            vkCmdPipelineBarrier(commandBuffer.handle,
+                                                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                 0, null, barrier, null);
+                        }
+
+                        VkBufferCopy.Buffer copyRegion = VkBufferCopy.calloc(1, stack);
+                        copyRegion.srcOffset(gpuBufferSlice.offset());
+                        copyRegion.dstOffset(gpuBufferSlice2.offset());
+                        copyRegion.size(gpuBufferSlice.length());
+
+                        vkCmdCopyBuffer(commandBuffer.handle, srcId, dstId, copyRegion);
+                    }
                 }
             }
         }
@@ -564,7 +662,8 @@ public class VkCommandEncoder implements CommandEncoder {
                 throw new IllegalStateException("Destination buffer is closed");
             } else {
                 try (MemoryStack stack = MemoryStack.stackPush()) {
-                    CommandPool.CommandBuffer commandBuffer = DeviceManager.getGraphicsQueue().beginCommands();
+                    GraphicsQueue graphicsQueue = DeviceManager.getGraphicsQueue();
+                    CommandPool.CommandBuffer commandBuffer = graphicsQueue.beginCommands();
                     VkCommandBuffer vkCommandBuffer = commandBuffer.getHandle();
                     VulkanImage image = vkGpuTexture.getVulkanImage();
                     Buffer buffer = vkGpuBuffer.getBuffer();
@@ -573,10 +672,23 @@ public class VkCommandEncoder implements CommandEncoder {
                     image.transitionImageLayout(stack, vkCommandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
                     ImageUtil.copyImageToBuffer(stack, vkCommandBuffer, buffer.getId(), image.getId(), mipLevel, width, height, xOffset, yOffset, dstOffset, width, height);
 
-                    image.transitionImageLayout(stack, vkCommandBuffer, prevLayout);
-                }
+                    if (prevLayout != VK_IMAGE_LAYOUT_UNDEFINED && prevLayout != VK_IMAGE_LAYOUT_PREINITIALIZED) {
+                        image.transitionImageLayout(stack, vkCommandBuffer, prevLayout);
+                    } else {
+                        image.transitionImageLayout(stack, vkCommandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    }
 
-                MemoryManager.getInstance().addFrameOp(runnable);
+                    if (Renderer.isRecording()) {
+                        graphicsQueue.submitCommands(commandBuffer, true);
+                        Synchronization.INSTANCE.addCommandBuffer(commandBuffer, true);
+                        MemoryManager.getInstance().addFrameOp(runnable);
+                    } else {
+                        long fence = graphicsQueue.submitCommands(commandBuffer, false);
+                        Synchronization.waitFence(fence);
+                        commandBuffer.reset();
+                        runnable.run();
+                    }
+                }
             }
         } else {
             throw new IllegalArgumentException("Invalid mipLevel " + mipLevel + ", must be >= 0 and < " + gpuTexture.getMipLevels());
@@ -623,7 +735,58 @@ public class VkCommandEncoder implements CommandEncoder {
             } else if (gpuTexture2.isClosed()) {
                 throw new IllegalStateException("Destination texture is closed");
             } else {
-                // TODO implement
+                VkGpuTexture srcTex = (VkGpuTexture) gpuTexture;
+                VkGpuTexture dstTex = (VkGpuTexture) gpuTexture2;
+                VulkanImage srcImg = srcTex.getVulkanImage();
+                VulkanImage dstImg = dstTex.getVulkanImage();
+
+                try (MemoryStack stack = MemoryStack.stackPush()) {
+                    GraphicsQueue graphicsQueue = DeviceManager.getGraphicsQueue();
+                    CommandPool.CommandBuffer commandBuffer = graphicsQueue.beginCommands();
+                    VkCommandBuffer vkCommandBuffer = commandBuffer.getHandle();
+
+                    int prevSrcLayout = srcImg.getCurrentLayout();
+                    int prevDstLayout = dstImg.getCurrentLayout();
+
+                    srcImg.transitionImageLayout(stack, vkCommandBuffer, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                    dstImg.transitionImageLayout(stack, vkCommandBuffer, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+                    VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
+                    copyRegion.srcSubresource()
+                              .aspectMask(srcImg.aspect)
+                              .mipLevel(mipLevel)
+                              .baseArrayLayer(0)
+                              .layerCount(1);
+                    copyRegion.srcOffset().set(l, m, 0);
+                    copyRegion.dstSubresource()
+                              .aspectMask(dstImg.aspect)
+                              .mipLevel(mipLevel)
+                              .baseArrayLayer(0)
+                              .layerCount(1);
+                    copyRegion.dstOffset().set(j, k, 0);
+                    copyRegion.extent().set(n, o, 1);
+
+                    vkCmdCopyImage(vkCommandBuffer,
+                                   srcImg.getId(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                   dstImg.getId(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   copyRegion);
+
+                    int restoreSrc = (prevSrcLayout != VK_IMAGE_LAYOUT_UNDEFINED && prevSrcLayout != VK_IMAGE_LAYOUT_PREINITIALIZED)
+                            ? prevSrcLayout : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    int restoreDst = (prevDstLayout != VK_IMAGE_LAYOUT_UNDEFINED && prevDstLayout != VK_IMAGE_LAYOUT_PREINITIALIZED)
+                            ? prevDstLayout : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    srcImg.transitionImageLayout(stack, vkCommandBuffer, restoreSrc);
+                    dstImg.transitionImageLayout(stack, vkCommandBuffer, restoreDst);
+
+                    if (Renderer.isRecording()) {
+                        graphicsQueue.submitCommands(commandBuffer, true);
+                        Synchronization.INSTANCE.addCommandBuffer(commandBuffer, true);
+                    } else {
+                        long fence = graphicsQueue.submitCommands(commandBuffer, false);
+                        Synchronization.waitFence(fence);
+                        commandBuffer.reset();
+                    }
+                }
             }
         } else {
             throw new IllegalArgumentException("Invalid mipLevel " + mipLevel + ", must be >= 0 and < " + gpuTexture.getMipLevels() + " and < " + gpuTexture2.getMipLevels());
@@ -635,19 +798,7 @@ public class VkCommandEncoder implements CommandEncoder {
         if (this.inRenderPass) {
             throw new IllegalStateException("Close the existing render pass before performing additional commands");
         } else {
-//            throw new UnsupportedOperationException();
-            // TODO
-            return new GpuFence() {
-                @Override
-                public void close() {
-
-                }
-
-                @Override
-                public boolean awaitCompletion(long l) {
-                    return true;
-                }
-            };
+            return new VkGpuFence();
         }
     }
 
@@ -770,35 +921,64 @@ public class VkCommandEncoder implements CommandEncoder {
         }
 
         VkCommandBuffer vkCommandBuffer = Renderer.getCommandBuffer();
+        int currentEpoch = Renderer.getInstance().getBufferBindEpoch();
+        if (vkCommandBuffer != this.lastCmdBuffer || currentEpoch != this.lastBufferBindEpoch) {
+            this.lastCmdBuffer = vkCommandBuffer;
+            this.lastBufferBindEpoch = currentEpoch;
+            this.boundVertexBufferId = 0L;
+            this.boundVertexOffset = -1L;
+            this.boundIndexBufferId = 0L;
+            this.boundIndexOffset = -1L;
+            this.boundIndexType = -1;
+        }
+
         VkGpuBuffer vertexBuffer = (VkGpuBuffer)renderPass.vertexBuffers[0];
-        try (MemoryStack stack = stackPush()) {
-            if (vertexBuffer != null) {
-//                VK11.vkCmdBindVertexBuffers(vkCommandBuffer, 0, stack.longs(vertexBuffer.buffer.getId()), stack.longs(0));
-                VK11.vkCmdBindVertexBuffers(vkCommandBuffer, 0, stack.longs(vertexBuffer.buffer.getId()), stack.longs(vertexBuffer.offset));
+        if (vertexBuffer != null) {
+            long vbId = vertexBuffer.buffer.getId();
+            long vbOffset = vertexBuffer.offset;
+            if (vbId != this.boundVertexBufferId || vbOffset != this.boundVertexOffset) {
+                MemoryUtil.memPutLong(P_VERTEX_BUFFERS, vbId);
+                MemoryUtil.memPutLong(P_VERTEX_OFFSETS, vbOffset);
+                nvkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, P_VERTEX_BUFFERS, P_VERTEX_OFFSETS);
+                this.boundVertexBufferId = vbId;
+                this.boundVertexOffset = vbOffset;
             }
+        }
 
-            if (renderPass.indexBuffer != null) {
-                VkGpuBuffer indexBuffer = (VkGpuBuffer)renderPass.indexBuffer;
+        if (renderPass.indexBuffer != null) {
+            VkGpuBuffer indexBuffer = (VkGpuBuffer)renderPass.indexBuffer;
 
-                int vkIndexType = switch (indexType) {
-                    case SHORT -> VK_INDEX_TYPE_UINT16;
-                    case INT -> VK_INDEX_TYPE_UINT32;
-                };
+            int vkIndexType = switch (indexType) {
+                case SHORT -> VK_INDEX_TYPE_UINT16;
+                case INT -> VK_INDEX_TYPE_UINT32;
+            };
 
-//                VK11.vkCmdBindIndexBuffer(vkCommandBuffer, indexBuffer.buffer.getId(), 0, vkIndexType);
-                VK11.vkCmdBindIndexBuffer(vkCommandBuffer, indexBuffer.buffer.getId(), indexBuffer.offset, vkIndexType);
-                VK11.vkCmdDrawIndexed(vkCommandBuffer, vertexCount, instanceCount, firstIndex, vertexOffset, 0);
+            long ibId = indexBuffer.buffer.getId();
+            long ibOffset = indexBuffer.offset;
+            if (ibId != this.boundIndexBufferId || ibOffset != this.boundIndexOffset || vkIndexType != this.boundIndexType) {
+                vkCmdBindIndexBuffer(vkCommandBuffer, ibId, ibOffset, vkIndexType);
+                this.boundIndexBufferId = ibId;
+                this.boundIndexOffset = ibOffset;
+                this.boundIndexType = vkIndexType;
+            }
+            vkCmdDrawIndexed(vkCommandBuffer, vertexCount, instanceCount, firstIndex, vertexOffset, 0);
+        }
+        else {
+            var autoIndexBuffer = Renderer.getDrawer().getAutoIndexBuffer(renderPipeline.getVertexFormatMode(), vertexCount);
+            if (autoIndexBuffer != null) {
+                int indexCount = autoIndexBuffer.getIndexCount(vertexCount);
+                long ibId = autoIndexBuffer.getIndexBuffer().getId();
+                int vkIndexType = autoIndexBuffer.getIndexBuffer().indexType.value;
+                if (ibId != this.boundIndexBufferId || 0L != this.boundIndexOffset || vkIndexType != this.boundIndexType) {
+                    vkCmdBindIndexBuffer(vkCommandBuffer, ibId, 0L, vkIndexType);
+                    this.boundIndexBufferId = ibId;
+                    this.boundIndexOffset = 0L;
+                    this.boundIndexType = vkIndexType;
+                }
+                vkCmdDrawIndexed(vkCommandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, 0);
             }
             else {
-                var autoIndexBuffer = Renderer.getDrawer().getAutoIndexBuffer(renderPipeline.getVertexFormatMode(), vertexCount);
-                if (autoIndexBuffer != null) {
-                    int indexCount = autoIndexBuffer.getIndexCount(vertexCount);
-                    VK11.vkCmdBindIndexBuffer(vkCommandBuffer, autoIndexBuffer.getIndexBuffer().getId(), 0, autoIndexBuffer.getIndexBuffer().indexType.value);
-                    VK11.vkCmdDrawIndexed(vkCommandBuffer, indexCount, instanceCount, firstIndex, vertexOffset, 0);
-                }
-                else {
-                    VK11.vkCmdDraw(vkCommandBuffer, vertexCount, instanceCount, vertexOffset, 0);
-                }
+                vkCmdDraw(vkCommandBuffer, vertexCount, instanceCount, vertexOffset, 0);
             }
         }
     }
@@ -822,63 +1002,62 @@ public class VkCommandEncoder implements CommandEncoder {
         setupUniforms(renderPass);
 
         if (renderPass.isScissorEnabled()) {
-            GlStateManager._enableScissorTest();
-            GlStateManager._scissorBox(
+            Renderer.setScissor(
                     renderPass.getScissorX(), renderPass.getScissorY(), renderPass.getScissorWidth(), renderPass.getScissorHeight()
             );
         } else {
-            GlStateManager._disableScissorTest();
+            Renderer.resetScissor();
         }
 
         return bindPipeline(renderPass.pipeline);
     }
 
     public void setupUniforms(VkRenderPass renderPass) {
-        RenderPipeline renderPipeline = renderPass.pipeline;
-        EGlProgram glProgram = ExtendedRenderPipeline.of(renderPass.pipeline).getProgram();
         Pipeline pipeline = ExtendedRenderPipeline.of(renderPass.pipeline).getPipeline();
 
-        for (UBO ubo : pipeline.getBuffers()) {
-            String uniformName = ubo.name;
-            Uniform uniform = glProgram.getUniform(uniformName);
+        if (renderPass.uniformsDirty) {
+            for (UBO ubo : pipeline.getBuffers()) {
+                String uniformName = ubo.name;
+                GpuBufferSlice gpuBufferSlice = renderPass.uniforms.get(uniformName);
 
-            GpuBufferSlice gpuBufferSlice = renderPass.uniforms.get(uniformName);
+                // In case uniform buffer is not set, fallback to global buffer
+                if (gpuBufferSlice == null) {
+                    ubo.setUseGlobalBuffer(true);
+                    ubo.setUpdate(true);
+                    continue;
+                }
 
-            // In case uniform buffer is not set, fallback to global buffer
-            if (gpuBufferSlice == null) {
-                ubo.setUseGlobalBuffer(true);
-                ubo.setUpdate(true);
-                continue;
+                VkGpuBuffer gpuBuffer = (VkGpuBuffer) gpuBufferSlice.buffer();
+
+                ubo.setUseGlobalBuffer(false);
+                ubo.getBufferSlice().set(gpuBuffer.buffer, gpuBufferSlice.offset(), (int) gpuBufferSlice.length());
             }
-
-            VkGpuBuffer gpuBuffer = (VkGpuBuffer) gpuBufferSlice.buffer();
-
-            assert ubo != null;
-            ubo.setUseGlobalBuffer(false);
-            ubo.getBufferSlice().set(gpuBuffer.buffer, gpuBufferSlice.offset(), (int) gpuBufferSlice.length());
+            renderPass.uniformsDirty = false;
         }
 
-        for (ImageDescriptor imageDescriptor : pipeline.getImageDescriptors()) {
-            String uniformName = imageDescriptor.name;
-            int samplerIndex = imageDescriptor.imageIdx;
+        if (renderPass.samplersDirty) {
+            for (ImageDescriptor imageDescriptor : pipeline.getImageDescriptors()) {
+                String uniformName = imageDescriptor.name;
+                int samplerIndex = imageDescriptor.imageIdx;
 
-            var textureSampler = renderPass.samplers.get(uniformName);
-            if (textureSampler == null) {
-                continue;
+                var textureSampler = renderPass.samplers.get(uniformName);
+                if (textureSampler == null) {
+                    continue;
+                }
+
+                VkTextureView textureView = textureSampler.view();
+                VkGpuTexture gpuTexture = textureView.texture();
+                if (gpuTexture.isClosed()) {
+                    continue;
+                }
+
+                VulkanImage vulkanImage = gpuTexture.getVulkanImage();
+                vulkanImage.setSampler(textureSampler.sampler().getId());
+                VTextureSelector.bindTexture(samplerIndex, vulkanImage);
             }
-
-            VkTextureView textureView = textureSampler.view();
-            VkGpuTexture gpuTexture = textureView.texture();
-            if (gpuTexture.isClosed()) {
-                continue;
-            }
-
-            GlStateManager._activeTexture(33984 + samplerIndex);
-            GlStateManager._bindTexture(gpuTexture.id);
-
-            gpuTexture.getVulkanImage().setSampler(textureSampler.sampler().getId());
+            renderPass.samplersDirty = false;
         }
-
+        renderPass.dirtyUniforms.clear();
     }
 
     public boolean bindPipeline(RenderPipeline renderPipeline) {
@@ -900,53 +1079,113 @@ public class VkCommandEncoder implements CommandEncoder {
     public void applyPipelineState(RenderPipeline renderPipeline) {
         if (this.lastPipeline != renderPipeline) {
             this.lastPipeline = renderPipeline;
-            if (renderPipeline.getDepthTestFunction() != DepthTestFunction.NO_DEPTH_TEST) {
-                GlStateManager._enableDepthTest();
-                GlStateManager._depthFunc(GlConst.toGl(renderPipeline.getDepthTestFunction()));
+
+            DepthTestFunction depthFunc = renderPipeline.getDepthTestFunction();
+            if (depthFunc != DepthTestFunction.NO_DEPTH_TEST) {
+                VRenderSystem.depthTest = true;
+                VRenderSystem.depthFun = toVkDepthOp(depthFunc);
             } else {
-                GlStateManager._disableDepthTest();
+                VRenderSystem.depthTest = false;
             }
 
-            if (renderPipeline.isCull()) {
-                GlStateManager._enableCull();
-            } else {
-                GlStateManager._disableCull();
-            }
+            VRenderSystem.cullMode = renderPipeline.isCull() ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
 
             if (renderPipeline.getBlendFunction().isPresent()) {
-                GlStateManager._enableBlend();
                 BlendFunction blendFunction = renderPipeline.getBlendFunction().get();
-                GlStateManager._blendFuncSeparate(
-                        GlConst.toGl(blendFunction.sourceColor()),
-                        GlConst.toGl(blendFunction.destColor()),
-                        GlConst.toGl(blendFunction.sourceAlpha()),
-                        GlConst.toGl(blendFunction.destAlpha())
+                PipelineState.blendInfo.enabled = true;
+                PipelineState.blendInfo.setBlendFuncSeparate(
+                        toVkBlendFactor(blendFunction.sourceColor()),
+                        toVkBlendFactor(blendFunction.destColor()),
+                        toVkBlendFactor(blendFunction.sourceAlpha()),
+                        toVkBlendFactor(blendFunction.destAlpha())
                 );
             } else {
-                GlStateManager._disableBlend();
+                PipelineState.blendInfo.enabled = false;
             }
 
-            GlStateManager._polygonMode(1032, GlConst.toGl(renderPipeline.getPolygonMode()));
-            GlStateManager._depthMask(renderPipeline.isWriteDepth());
-            GlStateManager._colorMask(renderPipeline.isWriteColor(), renderPipeline.isWriteColor(), renderPipeline.isWriteColor(), renderPipeline.isWriteAlpha());
-            if (renderPipeline.getDepthBiasConstant() == 0.0F && renderPipeline.getDepthBiasScaleFactor() == 0.0F) {
-                GlStateManager._disablePolygonOffset();
+            VRenderSystem.polygonMode = renderPipeline.getPolygonMode() == PolygonMode.WIREFRAME
+                    ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+            VRenderSystem.depthMask = renderPipeline.isWriteDepth();
+            VRenderSystem.colorMask = PipelineState.ColorMask.getColorMask(
+                    renderPipeline.isWriteColor(), renderPipeline.isWriteColor(),
+                    renderPipeline.isWriteColor(), renderPipeline.isWriteAlpha());
+
+            float biasConst = renderPipeline.getDepthBiasConstant();
+            float biasSlope = renderPipeline.getDepthBiasScaleFactor();
+            if (biasConst == 0.0F && biasSlope == 0.0F) {
+                VRenderSystem.disablePolygonOffset();
             } else {
-                GlStateManager._polygonOffset(renderPipeline.getDepthBiasScaleFactor(), renderPipeline.getDepthBiasConstant());
-                GlStateManager._enablePolygonOffset();
+                VRenderSystem.polygonOffset(biasSlope, biasConst);
+                VRenderSystem.enablePolygonOffset();
             }
 
             switch (renderPipeline.getColorLogic()) {
-                case NONE:
-                    GlStateManager._disableColorLogicOp();
-                    break;
-                case OR_REVERSE:
-                    GlStateManager._enableColorLogicOp();
-                    GlStateManager._logicOp(5387);
+                case NONE -> VRenderSystem.disableColorLogicOp();
+                case OR_REVERSE -> {
+                    VRenderSystem.enableColorLogicOp();
+                    VRenderSystem.logicOpFun = VK_LOGIC_OP_OR_REVERSE;
+                }
             }
 
-            VRenderSystem.setPrimitiveTopologyGL(GlConst.toGl(renderPipeline.getVertexFormatMode()));
+            VRenderSystem.topology = toVkTopology(renderPipeline.getVertexFormatMode());
         }
+    }
+
+    private static int toVkDepthOp(DepthTestFunction fn) {
+        return switch (fn) {
+            case EQUAL_DEPTH_TEST -> VK_COMPARE_OP_EQUAL;
+            case LEQUAL_DEPTH_TEST -> VK_COMPARE_OP_LESS_OR_EQUAL;
+            case LESS_DEPTH_TEST -> VK_COMPARE_OP_LESS;
+            case GREATER_DEPTH_TEST -> VK_COMPARE_OP_GREATER;
+            case NO_DEPTH_TEST -> VK_COMPARE_OP_ALWAYS;
+        };
+    }
+
+    private static int toVkBlendFactor(SourceFactor f) {
+        return switch (f) {
+            case CONSTANT_ALPHA -> VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            case CONSTANT_COLOR -> VK_BLEND_FACTOR_CONSTANT_COLOR;
+            case DST_ALPHA -> VK_BLEND_FACTOR_DST_ALPHA;
+            case DST_COLOR -> VK_BLEND_FACTOR_DST_COLOR;
+            case ONE -> VK_BLEND_FACTOR_ONE;
+            case ONE_MINUS_CONSTANT_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            case ONE_MINUS_CONSTANT_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+            case ONE_MINUS_DST_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            case ONE_MINUS_DST_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+            case ONE_MINUS_SRC_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            case ONE_MINUS_SRC_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+            case SRC_ALPHA -> VK_BLEND_FACTOR_SRC_ALPHA;
+            case SRC_ALPHA_SATURATE -> VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+            case SRC_COLOR -> VK_BLEND_FACTOR_SRC_COLOR;
+            case ZERO -> VK_BLEND_FACTOR_ZERO;
+        };
+    }
+
+    private static int toVkBlendFactor(DestFactor f) {
+        return switch (f) {
+            case CONSTANT_ALPHA -> VK_BLEND_FACTOR_CONSTANT_ALPHA;
+            case CONSTANT_COLOR -> VK_BLEND_FACTOR_CONSTANT_COLOR;
+            case DST_ALPHA -> VK_BLEND_FACTOR_DST_ALPHA;
+            case DST_COLOR -> VK_BLEND_FACTOR_DST_COLOR;
+            case ONE -> VK_BLEND_FACTOR_ONE;
+            case ONE_MINUS_CONSTANT_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+            case ONE_MINUS_CONSTANT_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+            case ONE_MINUS_DST_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+            case ONE_MINUS_DST_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+            case ONE_MINUS_SRC_ALPHA -> VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            case ONE_MINUS_SRC_COLOR -> VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+            case SRC_ALPHA -> VK_BLEND_FACTOR_SRC_ALPHA;
+            case SRC_COLOR -> VK_BLEND_FACTOR_SRC_COLOR;
+            case ZERO -> VK_BLEND_FACTOR_ZERO;
+        };
+    }
+
+    private static int toVkTopology(VertexFormat.Mode mode) {
+        return switch (mode) {
+            case LINES, DEBUG_LINES, DEBUG_LINE_STRIP -> VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            case POINTS -> VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            case QUADS, TRIANGLES, TRIANGLE_STRIP, TRIANGLE_FAN -> VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        };
     }
 
     public void finishRenderPass(boolean forceEnd) {
@@ -955,6 +1194,11 @@ public class VkCommandEncoder implements CommandEncoder {
         }
 
         this.inRenderPass = false;
+        this.boundVertexBufferId = 0L;
+        this.boundVertexOffset = -1L;
+        this.boundIndexBufferId = 0L;
+        this.boundIndexOffset = -1L;
+        this.boundIndexType = -1;
     }
 
     protected VkGpuDevice getDevice() {

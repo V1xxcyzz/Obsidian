@@ -29,18 +29,20 @@ public class SwitchOptionWidget extends OptionWidget<SwitchOption> {
         if (this.option.getNewValue()) {
             int x1 = x0 + halfWidth + 2;
 
-            color = ColorUtil.ARGB.pack(0.4f, 0.4f, 0.4f, 1.0f);
+            color = ColorUtil.ARGB.multiplyAlpha(net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT, this.active ? 0.65f : 0.3f);
             GuiRenderer.fillBox(x0 + 2, y0 + 2, x1 - (x0 + 2) - 1, h1, color);
 
-            color = ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 1.0f);
+            color = this.active ? 0xFFFFFFFF : 0xFFA0A0A0;
             GuiRenderer.fillBox(x1, y0 + 2, w1, h1, color);
         } else {
-            color = ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.4f);
+            color = ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.35f);
             GuiRenderer.fillBox(x0 + 2, y0 + 2, w1, h1, color);
         }
 
-        color = ColorUtil.ARGB.pack(0.6f, 0.6f, 0.6f, 1.0f);
-        GuiRenderer.renderBoxBorder(x0, y0, halfWidth * 2, height, 1,  color);
+        color = this.option.getNewValue() && this.active
+                ? net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT
+                : ColorUtil.ARGB.pack(0.55f, 0.55f, 0.60f, 0.9f);
+        GuiRenderer.renderBoxBorder(x0, y0, halfWidth * 2, height, 1, color);
 
         color = this.active ? 0xFFFFFFFF : 0xFFA0A0A0;
         Font textRenderer = Minecraft.getInstance().font;

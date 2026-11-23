@@ -41,7 +41,8 @@ public class VFrustum {
         projMatrix.mul(modelViewMatrix, this.matrix);
 
         this.frustum.set(this.matrix, false);
-        this.viewVector = this.matrix.transformTranspose(new Vector4f(0.0F, 0.0F, 1.0F, 0.0F));
+        this.viewVector.set(0.0F, 0.0F, 1.0F, 0.0F);
+        this.matrix.transformTranspose(this.viewVector);
     }
 
     public int cubeInFrustum(float x1, float y1, float z1, float x2, float y2, float z2) {

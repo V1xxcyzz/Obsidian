@@ -70,6 +70,18 @@ public class FluidRenderer implements FluidRendering.DefaultRenderer {
             handler = FluidRenderHandlerRegistry.INSTANCE.get(isLava ? Fluids.LAVA : Fluids.WATER);
         }
 
+        if (net.vulkanmod.Initializer.CONFIG.animateOnlyVisibleTextures && handler != null) {
+            TextureAtlasSprite[] fluidSprites = handler.getFluidSprites(this.resources.getRegion(), blockPos, fluidState);
+            if (fluidSprites != null) {
+                for (TextureAtlasSprite s : fluidSprites) {
+                    int spriteIdx = net.vulkanmod.render.texture.SpriteUpdateUtil.findAnimatedSpriteIndex(s);
+                    if (spriteIdx >= 0) {
+                        this.resources.animatedSpriteBits.set(spriteIdx);
+                    }
+                }
+            }
+        }
+
         FluidRendering.render(handler, this.resources.getRegion(),blockPos, bufferBuilder, blockState, fluidState, this);
     }
 

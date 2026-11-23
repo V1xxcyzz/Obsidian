@@ -36,6 +36,14 @@ public class DrawBuffers {
     private static final int CMD_STRIDE = 32;
 
     private static final long cmdBufferPtr = MemoryUtil.nmemAlignedAlloc(CMD_STRIDE, (long) ChunkAreaManager.AREA_SIZE * QuadFacing.COUNT * CMD_STRIDE);
+    private static final long originPushConstantPtr = MemoryUtil.nmemAlignedAlloc(16, 12);
+    private static final long vbHandlePtr = MemoryUtil.nmemAlignedAlloc(8, 8);
+    private static final long vbZeroOffsetPtr = MemoryUtil.nmemAlignedAlloc(8, 8);
+    static {
+        MemoryUtil.memPutLong(vbZeroOffsetPtr, 0L);
+    }
+
+    public static final int SECTION_DATA_SIZE = ChunkAreaManager.AREA_SIZE * 2 * 4;
 
     private final int index;
     public final int vertexSize = PipelineManager.getTerrainVertexFormat().getVertexSize();
@@ -46,7 +54,8 @@ public class DrawBuffers {
     AreaBuffer indexBuffer;
     private final EnumMap<TerrainRenderType, AreaBuffer> vertexBuffers = new EnumMap<>(TerrainRenderType.class);
 
-    private final UniformBuffer sectionDataBuffer = new UniformBuffer(ChunkAreaManager.AREA_SIZE * 2 * 4, MemoryTypes.HOST_MEM);
+    private final UniformBuffer sectionDataBuffer;
+    private final int sectionDataOffset;
 
     final long drawParamsPtr;
     final int[] sectionIndices = new int[512];
@@ -56,18 +65,26 @@ public class DrawBuffers {
     long latestBuildTime = 0;
     long lastFadeUpdate = -1;
 
+    private final ByteBuffer[] cachedIndirectCmds = new ByteBuffer[TerrainRenderType.VALUES.length];
+    private final int[] cachedIndirectCounts = new int[TerrainRenderType.VALUES.length];
+    private final short[] cachedGraphFrames = new short[TerrainRenderType.VALUES.length];
+    private final int[] cachedCamSecX = new int[TerrainRenderType.VALUES.length];
+    private final int[] cachedCamSecY = new int[TerrainRenderType.VALUES.length];
+    private final int[] cachedCamSecZ = new int[TerrainRenderType.VALUES.length];
+    private final boolean[] indirectCacheValid = new boolean[TerrainRenderType.VALUES.length];
+
     // Need ugly minHeight parameter to fix custom world heights (exceeding 384 Blocks in total)
-    public DrawBuffers(int index, Vector3i origin, int minHeight) {
+    public DrawBuffers(int index, Vector3i origin, int minHeight, UniformBuffer sectionDataBuffer, int sectionDataOffset) {
         this.index = index;
         this.origin = origin;
         this.minHeight = minHeight;
+        this.sectionDataBuffer = sectionDataBuffer;
+        this.sectionDataOffset = sectionDataOffset;
 
         this.drawParamsPtr = DrawParametersBuffer.allocateBuffer();
     }
 
     public void upload(RenderSection section, UploadBuffer buffer, TerrainRenderType renderType) {
-        var vertexBuffers = buffer.getVertexBuffers();
-
         if (buffer.indexOnly) {
             long paramsPtr = DrawParametersBuffer.getParamsPtr(this.drawParamsPtr, section.inAreaIndex, renderType.ordinal(), QuadFacing.UNDEFINED.ordinal());
 
@@ -85,7 +102,6 @@ public class DrawBuffers {
         }
 
         int oldOffset = -1;
-        int size = 0;
         for (int i = 0; i < QuadFacing.COUNT; i++) {
             long paramPtr = DrawParametersBuffer.getParamsPtr(this.drawParamsPtr, section.inAreaIndex, renderType.ordinal(), i);
             int vertexOffset = DrawParametersBuffer.getVertexOffset(paramPtr);
@@ -94,13 +110,10 @@ public class DrawBuffers {
             if (oldOffset == -1) {
                 oldOffset = vertexOffset;
             }
-
-            var vertexBuffer = vertexBuffers[i];
-            if (vertexBuffer != null) {
-                size += vertexBuffer.remaining();
-
-            }
         }
+
+        ByteBuffer packedVertexBuffer = buffer.getPackedVertexBuffer();
+        int size = packedVertexBuffer != null ? packedVertexBuffer.remaining() : 0;
 
         AreaBuffer areaBuffer = null;
         AreaBuffer.Segment segment = null;
@@ -109,6 +122,7 @@ public class DrawBuffers {
             areaBuffer = this.getAreaBufferOrAlloc(renderType);
             areaBuffer.freeSegment(oldOffset);
             segment = areaBuffer.allocateSegment(size);
+            areaBuffer.upload(segment, packedVertexBuffer, 0);
             doUpload = true;
         }
 
@@ -122,15 +136,14 @@ public class DrawBuffers {
             int firstIndex = 0;
             int indexCount = 0;
 
-            var vertexBuffer = vertexBuffers[i];
+            int facingBytes = buffer.getFacingSize(i);
             int vertexCount = 0;
 
-            if (vertexBuffer != null && doUpload) {
-                areaBuffer.upload(segment, vertexBuffer, offset);
+            if (facingBytes > 0 && doUpload) {
                 vertexOffset = (segment.offset + offset) / vertexSize;
 
-                offset += vertexBuffer.remaining();
-                vertexCount = vertexBuffer.limit() / vertexSize;
+                offset += facingBytes;
+                vertexCount = facingBytes / vertexSize;
                 indexCount = vertexCount * 6 / 4;
             }
 
@@ -153,14 +166,25 @@ public class DrawBuffers {
         }
 
         updateUniformData(section);
+        this.indirectCacheValid[renderType.ordinal()] = false;
 
         buffer.release();
+    }
+
+    public void invalidateIndirectCache(TerrainRenderType renderType) {
+        this.indirectCacheValid[renderType.ordinal()] = false;
+    }
+
+    public void invalidateAllIndirectCaches() {
+        for (int i = 0; i < this.indirectCacheValid.length; i++) {
+            this.indirectCacheValid[i] = false;
+        }
     }
 
     private void updateUniformData(RenderSection section) {
         int encodedOffset = encodeSectionOffset(section.xOffset(), section.yOffset(), section.zOffset());
         int ptrOffset = section.inAreaIndex * 4;
-        MemoryUtil.memPutInt(sectionDataBuffer.getPointer() + ptrOffset, encodedOffset);
+        MemoryUtil.memPutInt(sectionDataBuffer.getDataPtr() + sectionDataOffset + ptrOffset, encodedOffset);
 
         if (section.getCompiledSection() == CompiledSection.UNCOMPILED) {
             long buildTime = System.currentTimeMillis();
@@ -174,13 +198,12 @@ public class DrawBuffers {
 
     private void updateFadeUniform(long currentTime, int fadeTimeMs, float fadeTimeInv) {
         if (this.lastFadeUpdate < this.latestBuildTime + fadeTimeMs) {
-            int ptrOffset = 512 * 4;
+            long basePtr = sectionDataBuffer.getDataPtr() + sectionDataOffset + (512 * 4);
             for (int i = 0; i < 512; i++) {
                 long delta = currentTime - this.buildTimes[i];
                 float fade = fadeTimeMs > 0 ? Mth.clamp(delta * fadeTimeInv, 0.0f, 1.0f) : 1.0f;
 
-                MemoryUtil.memPutFloat(sectionDataBuffer.getPointer() + ptrOffset, fade);
-                ptrOffset += 4;
+                MemoryUtil.memPutFloat(basePtr + (i * 4L), fade);
             }
 
             this.lastFadeUpdate = currentTime;
@@ -215,21 +238,37 @@ public class DrawBuffers {
         return yOffset1 << 16 | zOffset1 << 8 | xOffset1;
     }
 
-    private void updateChunkAreaOrigin(VkCommandBuffer commandBuffer, Pipeline pipeline, double camX, double camY, double camZ, MemoryStack stack) {
+    private void updateChunkAreaOrigin(VkCommandBuffer commandBuffer, Pipeline pipeline, double camX, double camY, double camZ) {
         float xOffset = (float) ((this.origin.x) + POS_OFFSET - camX);
         float yOffset = (float) ((this.origin.y) + POS_OFFSET - camY);
         float zOffset = (float) ((this.origin.z) + POS_OFFSET - camZ);
 
-        ByteBuffer byteBuffer = stack.malloc(12);
+        MemoryUtil.memPutFloat(originPushConstantPtr, xOffset);
+        MemoryUtil.memPutFloat(originPushConstantPtr + 4, yOffset);
+        MemoryUtil.memPutFloat(originPushConstantPtr + 8, zOffset);
 
-        byteBuffer.putFloat(0, xOffset);
-        byteBuffer.putFloat(4, yOffset);
-        byteBuffer.putFloat(8, zOffset);
-
-        vkCmdPushConstants(commandBuffer, pipeline.getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, byteBuffer);
+        nvkCmdPushConstants(commandBuffer, pipeline.getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, 12, originPushConstantPtr);
     }
 
-    public void buildDrawBatchesIndirect(Vector3d cameraPos, IndirectBuffer indirectBuffer, StaticQueue<RenderSection> queue, TerrainRenderType terrainRenderType) {
+    public void buildDrawBatchesIndirect(Vector3d cameraPos, IndirectBuffer indirectBuffer, StaticQueue<RenderSection> queue, TerrainRenderType terrainRenderType,
+                                         int camSecX, int camSecY, int camSecZ, short graphFrame) {
+        int rtIdx = terrainRenderType.ordinal();
+        if (this.indirectCacheValid[rtIdx]
+                && this.cachedGraphFrames[rtIdx] == graphFrame
+                && this.cachedCamSecX[rtIdx] == camSecX
+                && this.cachedCamSecY[rtIdx] == camSecY
+                && this.cachedCamSecZ[rtIdx] == camSecZ) {
+            int cachedCount = this.cachedIndirectCounts[rtIdx];
+            if (cachedCount == 0) {
+                return;
+            }
+            ByteBuffer cachedBuf = this.cachedIndirectCmds[rtIdx];
+            cachedBuf.position(0);
+            indirectBuffer.recordCopyCmd(cachedBuf);
+            vkCmdDrawIndexedIndirect(Renderer.getCommandBuffer(), indirectBuffer.getId(), indirectBuffer.getOffset(), cachedCount, CMD_STRIDE);
+            return;
+        }
+
         long bufferPtr = cmdBufferPtr;
 
         boolean isTranslucent = terrainRenderType == TerrainRenderType.TRANSLUCENT;
@@ -360,11 +399,35 @@ public class DrawBuffers {
         }
 
         if (drawCount == 0) {
+            this.cachedIndirectCounts[rtIdx] = 0;
+            this.cachedGraphFrames[rtIdx] = graphFrame;
+            this.cachedCamSecX[rtIdx] = camSecX;
+            this.cachedCamSecY[rtIdx] = camSecY;
+            this.cachedCamSecZ[rtIdx] = camSecZ;
+            this.indirectCacheValid[rtIdx] = true;
             return;
         }
 
-        ByteBuffer byteBuffer = MemoryUtil.memByteBuffer(cmdBufferPtr, queue.size() * QuadFacing.COUNT * CMD_STRIDE);
-        indirectBuffer.recordCopyCmd(byteBuffer.position(0));
+        int byteSize = drawCount * CMD_STRIDE;
+        ByteBuffer cachedBuf = this.cachedIndirectCmds[rtIdx];
+        if (cachedBuf == null || cachedBuf.capacity() < byteSize) {
+            if (cachedBuf != null) {
+                MemoryUtil.memFree(cachedBuf);
+            }
+            cachedBuf = MemoryUtil.memAlloc(byteSize);
+            this.cachedIndirectCmds[rtIdx] = cachedBuf;
+        }
+        MemoryUtil.memCopy(cmdBufferPtr, MemoryUtil.memAddress0(cachedBuf), byteSize);
+        cachedBuf.limit(byteSize).position(0);
+
+        this.cachedIndirectCounts[rtIdx] = drawCount;
+        this.cachedGraphFrames[rtIdx] = graphFrame;
+        this.cachedCamSecX[rtIdx] = camSecX;
+        this.cachedCamSecY[rtIdx] = camSecY;
+        this.cachedCamSecZ[rtIdx] = camSecZ;
+        this.indirectCacheValid[rtIdx] = true;
+
+        indirectBuffer.recordCopyCmd(cachedBuf);
 
         vkCmdDrawIndexedIndirect(Renderer.getCommandBuffer(), indirectBuffer.getId(), indirectBuffer.getOffset(), drawCount, CMD_STRIDE);
     }
@@ -496,19 +559,19 @@ public class DrawBuffers {
                             double camX, double camY, double camZ,
                             long currentTime, int fadeTimeMs, float fadeTimeInv
     ) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            var vertexBuffer = getAreaBuffer(terrainRenderType);
-            nvkCmdBindVertexBuffers(commandBuffer, 0, 1, stack.npointer(vertexBuffer.getId()), stack.npointer(0));
-            updateChunkAreaOrigin(commandBuffer, pipeline, camX, camY, camZ, stack);
-        }
+        var vertexBuffer = getAreaBuffer(terrainRenderType);
+        MemoryUtil.memPutLong(vbHandlePtr, vertexBuffer.getId());
+        nvkCmdBindVertexBuffers(commandBuffer, 0, 1, vbHandlePtr, vbZeroOffsetPtr);
+        updateChunkAreaOrigin(commandBuffer, pipeline, camX, camY, camZ);
 
         this.updateFadeUniform(currentTime, fadeTimeMs, fadeTimeInv);
 
-        sectionData.getBufferSlice().set(sectionDataBuffer, 0, (int) sectionDataBuffer.getBufferSize());
+        sectionData.getBufferSlice().set(sectionDataBuffer, sectionDataOffset, SECTION_DATA_SIZE);
 
         if (terrainRenderType == TerrainRenderType.TRANSLUCENT && this.indexBuffer != null) {
             vkCmdBindIndexBuffer(commandBuffer, this.indexBuffer.getId(), 0, VK_INDEX_TYPE_UINT16);
         }
+        Renderer.getInstance().invalidateBufferBindings();
     }
 
     public void releaseBuffers() {
@@ -523,10 +586,18 @@ public class DrawBuffers {
         this.indexBuffer = null;
 
         this.allocated = false;
+        this.invalidateAllIndirectCaches();
     }
 
     public void free() {
         this.releaseBuffers();
+
+        for (int i = 0; i < this.cachedIndirectCmds.length; i++) {
+            if (this.cachedIndirectCmds[i] != null) {
+                MemoryUtil.memFree(this.cachedIndirectCmds[i]);
+                this.cachedIndirectCmds[i] = null;
+            }
+        }
 
         DrawParametersBuffer.freeBuffer(this.drawParamsPtr);
     }

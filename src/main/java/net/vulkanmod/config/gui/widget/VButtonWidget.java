@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 
 public class VButtonWidget extends VAbstractWidget {
     boolean selected = false;
+    boolean tabStyle = false;
     Consumer<VButtonWidget> onPress;
 
     float alpha = 1.0f;
@@ -25,24 +26,33 @@ public class VButtonWidget extends VAbstractWidget {
         this.onPress = onPress;
     }
 
+    public void setTabStyle(boolean tabStyle) {
+        this.tabStyle = tabStyle;
+    }
+
     public void renderWidget(double mouseX, double mouseY) {
         if (!this.isVisible()) return;
 
         int backgroundColor = this.isActive()
-                ? ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_BLACK, 0.45f)
-                : ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_BLACK, 0.3f);
+                ? VGuiConstants.COLOR_PANEL_BG
+                : VGuiConstants.COLOR_PANEL_BG_DISABLED;
         int textColor = this.isActive()
                 ? VGuiConstants.COLOR_WHITE
                 : VGuiConstants.COLOR_GRAY;
-        //noinspection DuplicatedCode
-        int selectionOutlineColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_RED, 0.8f);
-        int selectionFillColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_RED, 0.2f);
+        int selectionOutlineColor = VGuiConstants.COLOR_ACCENT;
+        int selectionFillColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_ACCENT, 0.18f);
 
         GuiRenderer.fill(this.x, this.y, this.x + this.width, this.y + this.height, backgroundColor);
 
         if (this.selected) {
-            GuiRenderer.fill(this.x, this.y, this.x + 2, this.y + this.height, selectionOutlineColor);
             GuiRenderer.fill(this.x, this.y, this.x + this.width, this.y + this.height, selectionFillColor);
+            if (this.tabStyle) {
+                GuiRenderer.fill(this.x, this.y + this.height - 2, this.x + this.width, this.y + this.height, selectionOutlineColor);
+            } else {
+                GuiRenderer.fill(this.x, this.y, this.x + 2, this.y + this.height, selectionOutlineColor);
+            }
+        } else {
+            GuiRenderer.renderBorder(this.x, this.y, this.x + this.width, this.y + this.height, 1, VGuiConstants.COLOR_BORDER_SUBTLE);
         }
 
         this.renderHovering(0, 0);

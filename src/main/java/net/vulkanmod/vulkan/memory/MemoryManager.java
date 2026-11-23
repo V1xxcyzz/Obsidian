@@ -210,6 +210,14 @@ public class MemoryManager {
         return data;
     }
 
+    public long mapPointer(long allocation) {
+        try (MemoryStack stack = stackPush()) {
+            PointerBuffer data = stack.mallocPointer(1);
+            vmaMapMemory(ALLOCATOR, allocation, data);
+            return data.get(0);
+        }
+    }
+
     public static void freeBuffer(long buffer, long allocation) {
         vmaDestroyBuffer(ALLOCATOR, buffer, allocation);
 

@@ -6,6 +6,8 @@ import net.vulkanmod.render.chunk.frustum.FrustumOctree;
 import net.vulkanmod.render.chunk.frustum.VFrustum;
 import net.vulkanmod.render.chunk.util.CircularIntList;
 import net.vulkanmod.render.chunk.util.Util;
+import net.vulkanmod.vulkan.memory.MemoryTypes;
+import net.vulkanmod.vulkan.memory.buffer.UniformBuffer;
 import org.joml.Vector3i;
 
 public class ChunkAreaManager {
@@ -27,6 +29,8 @@ public class ChunkAreaManager {
     final int ySize;
     final int minHeight;
     final ChunkArea[] chunkAreasArr;
+    private final UniformBuffer sectionDataBuffer;
+    private final int sectionDataStride;
 
     int prevX;
     int prevZ;
@@ -53,12 +57,15 @@ public class ChunkAreaManager {
         this.size = xzSize * ySize * xzSize;
         this.chunkAreasArr = new ChunkArea[size];
 
+        this.sectionDataStride = UniformBuffer.getAlignedSize(DrawBuffers.SECTION_DATA_SIZE);
+        this.sectionDataBuffer = new UniformBuffer(this.size * this.sectionDataStride, MemoryTypes.HOST_MEM);
+
         for (int z = 0; z < this.xzSize; ++z) {
             for (int y = 0; y < this.ySize; ++y) {
                 for (int x = 0; x < this.xzSize; ++x) {
                     int idx = this.getAreaIndex(x, y, z);
                     Vector3i origin = new Vector3i(x << BLOCK_TO_AREA_SH_XZ, y << BLOCK_TO_AREA_SH_Y, z << BLOCK_TO_AREA_SH_XZ);
-                    this.chunkAreasArr[idx] = new ChunkArea(idx, origin, minHeight);
+                    this.chunkAreasArr[idx] = new ChunkArea(idx, origin, minHeight, this.sectionDataBuffer, idx * this.sectionDataStride);
                 }
             }
         }
@@ -211,6 +218,7 @@ public class ChunkAreaManager {
         for (ChunkArea chunkArea : this.chunkAreasArr) {
             chunkArea.free();
         }
+        this.sectionDataBuffer.scheduleFree();
     }
 
     public String[] getStats() {

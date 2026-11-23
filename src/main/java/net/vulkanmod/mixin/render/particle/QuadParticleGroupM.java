@@ -22,6 +22,9 @@ public class QuadParticleGroupM {
 
     @Unique
     private static boolean cull(WorldRenderer worldRenderer, double x, double y, double z) {
+        if (worldRenderer == null || worldRenderer.getSectionGrid() == null) {
+            return false;
+        }
         RenderSection section = worldRenderer.getSectionGrid().getSectionAtBlockPos((int) x, (int) y, (int) z);
         return section != null && section.getLastFrame() != worldRenderer.getLastFrame();
     }

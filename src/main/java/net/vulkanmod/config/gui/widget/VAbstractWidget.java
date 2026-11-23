@@ -58,9 +58,9 @@ public abstract class VAbstractWidget extends GuiElement {
         if (this.isFocused() || !this.isActive() || !this.visible || this.focused)
             return;
 
-        float hoverMultiplier = this.getHoverMultiplier(200);
-        int borderColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_RED, hoverMultiplier);
-        int backgroundColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_RED, 0.3f * hoverMultiplier);
+        float hoverMultiplier = this.getHoverMultiplier(160);
+        int borderColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_ACCENT, 0.85f * hoverMultiplier);
+        int backgroundColor = ColorUtil.ARGB.multiplyAlpha(VGuiConstants.COLOR_ACCENT, 0.16f * hoverMultiplier);
 
         if (hoverMultiplier > 0.0f) {
             GuiRenderer.fill(this.x - xPadding, this.y - yPadding,

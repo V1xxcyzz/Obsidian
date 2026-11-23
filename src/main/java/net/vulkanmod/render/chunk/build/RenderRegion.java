@@ -42,7 +42,7 @@ public class RenderRegion implements BlockAndTintGetter {
     private final int blendRadius;
 
     private final PalettedContainer<BlockState>[] blockDataContainers;
-    private final BlockState[] blockData;
+    private BlockState[] blockData;
     private final DataLayer[][] lightData;
 
     private BiomeData biomeData;
@@ -50,7 +50,7 @@ public class RenderRegion implements BlockAndTintGetter {
 
     private final Map<BlockPos, BlockEntity> blockEntityMap;
 
-    private final Function<BlockPos, BlockState> blockStateGetter;
+    private final boolean isDebug;
 
     RenderRegion(Level level, int x, int y, int z, PalettedContainer<BlockState>[] blockData, DataLayer[][] lightData,
                  BiomeData biomeData, Map<BlockPos, BlockEntity> blockEntityMap) {
@@ -71,15 +71,18 @@ public class RenderRegion implements BlockAndTintGetter {
         this.biomeData = biomeData;
         this.blockEntityMap = blockEntityMap;
 
-        this.blockData = new BlockState[BLOCK_COUNT];
-
-        this.blockStateGetter = level.isDebug() ? this::debugBlockState : this::defaultBlockState;
+        this.isDebug = level.isDebug();
 
         this.blendRadius = Minecraft.getInstance().options.biomeBlendRadius().get();
     }
 
     public void loadBlockStates() {
-        Arrays.fill(blockData, Blocks.AIR.defaultBlockState());
+        loadBlockStates(new BlockState[BLOCK_COUNT]);
+    }
+
+    public void loadBlockStates(BlockState[] blockDataBuffer) {
+        this.blockData = blockDataBuffer;
+        Arrays.fill(blockData, AIR_BLOCK_STATE);
 
         for (int x = 0; x <= 2; ++x) {
             for (int z = 0; z <= 2; ++z) {
@@ -115,13 +118,13 @@ public class RenderRegion implements BlockAndTintGetter {
                                 int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
 
         for (int y = minY; y < maxY; ++y) {
+            int yBase = (y - this.minY) * REGION_BLOCK_WIDTH;
+            int localY = y & 15;
             for (int z = minZ; z < maxZ; ++z) {
+                int yzBase = (yBase + (z - this.minZ)) * REGION_BLOCK_WIDTH - this.minX;
+                int localZ = z & 15;
                 for (int x = minX; x < maxX; ++x) {
-                    final int idx = getBlockIdx(x - this.minX, y - this.minY, z - this.minZ);
-
-                    blockStates[idx] = container != null ?
-                            container.get(x & 15, y & 15, z & 15)
-                            : Blocks.AIR.defaultBlockState();
+                    blockStates[yzBase + x] = container.get(x & 15, localY, localZ);
                 }
             }
         }
@@ -133,7 +136,16 @@ public class RenderRegion implements BlockAndTintGetter {
     }
 
     public BlockState getBlockState(BlockPos blockPos) {
-        return blockStateGetter.apply(blockPos);
+        return this.isDebug ? debugBlockState(blockPos) : defaultBlockState(blockPos);
+    }
+
+    public BlockState getBlockStateUnchecked(int relX, int relY, int relZ) {
+        if (this.isDebug) {
+            return debugBlockState(this.minX + BOUNDARY_BLOCK_WIDTH + relX,
+                                   this.minY + BOUNDARY_BLOCK_WIDTH + relY,
+                                   this.minZ + BOUNDARY_BLOCK_WIDTH + relZ);
+        }
+        return this.blockData[getBlockIdx(relX + BOUNDARY_BLOCK_WIDTH, relY + BOUNDARY_BLOCK_WIDTH, relZ + BOUNDARY_BLOCK_WIDTH)];
     }
 
     public FluidState getFluidState(BlockPos blockPos) {
@@ -229,10 +241,10 @@ public class RenderRegion implements BlockAndTintGetter {
     }
 
     public BlockState debugBlockState(BlockPos blockPos) {
-        int x = blockPos.getX();
-        int y = blockPos.getY();
-        int z = blockPos.getZ();
+        return debugBlockState(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+    }
 
+    private BlockState debugBlockState(int x, int y, int z) {
         BlockState blockState = null;
         if (y == 60) {
             blockState = Blocks.BARRIER.defaultBlockState();
@@ -241,6 +253,6 @@ public class RenderRegion implements BlockAndTintGetter {
             blockState = DebugLevelSource.getBlockStateFor(x, z);
         }
 
-        return blockState == null ? Blocks.AIR.defaultBlockState() : blockState;
+        return blockState == null ? AIR_BLOCK_STATE : blockState;
     }
 }

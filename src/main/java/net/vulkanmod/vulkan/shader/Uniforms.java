@@ -29,7 +29,16 @@ public class Uniforms {
 
         //Vec1i
         vec1i_uniformMap.put("EndPortalLayers", () -> 15);
-        vec1i_uniformMap.put("UseRgss", () -> Minecraft.getInstance().options.textureFiltering().get() == TextureFilteringMethod.RGSS ? 1 : 0);
+        vec1i_uniformMap.put("UseRgss", () -> {
+            TextureFilteringMethod method = Minecraft.getInstance().options.textureFiltering().get();
+            if (method == TextureFilteringMethod.RGSS) {
+                return 1;
+            }
+            if (method == TextureFilteringMethod.NONE && net.vulkanmod.Initializer.CONFIG.fastTerrainSampling) {
+                return 2;
+            }
+            return 0;
+        });
         vec1i_uniformMap.put("CurrentTime", VRenderSystem::getCurrentTime);
 
         //Vec1

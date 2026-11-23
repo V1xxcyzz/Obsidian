@@ -25,6 +25,8 @@ public abstract class MTextureManager {
         if (!Initializer.CONFIG.textureAnimations)
             return;
 
+        SpriteUpdateUtil.advanceTick();
+
         for (TickableTexture tickable : this.tickableTextures) {
             tickable.tick();
         }

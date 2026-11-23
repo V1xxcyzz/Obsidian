@@ -33,23 +33,11 @@ public abstract class Pipeline {
     protected static final List<Pipeline> PIPELINES = new ArrayList<>();
 
     private static long createPipelineCache() {
-        try (MemoryStack stack = stackPush()) {
-
-            VkPipelineCacheCreateInfo cacheCreateInfo = VkPipelineCacheCreateInfo.calloc(stack);
-            cacheCreateInfo.sType(VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO);
-
-            LongBuffer pPipelineCache = stack.mallocLong(1);
-
-            if (vkCreatePipelineCache(DEVICE, cacheCreateInfo, null, pPipelineCache) != VK_SUCCESS) {
-                throw new RuntimeException("Failed to create graphics pipeline");
-            }
-
-            return pPipelineCache.get(0);
-        }
+        return PipelineCacheManager.createPipelineCache(DEVICE);
     }
 
     public static void destroyPipelineCache() {
-        vkDestroyPipelineCache(DEVICE, PIPELINE_CACHE, null);
+        PipelineCacheManager.saveAndDestroy(DEVICE, PIPELINE_CACHE);
     }
 
     public static void recreateDescriptorSets(int frames) {

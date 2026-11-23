@@ -197,14 +197,41 @@ public class SectionGraph {
     }
 
     private void scheduleRebuilds() {
-        for (int i = 0; i < this.rebuildQueue.size(); i++) {
-            RenderSection section = this.rebuildQueue.get(i);
+        int size = this.rebuildQueue.size();
+        if (size == 0) {
+            return;
+        }
 
-            var cameraPos = WorldRenderer.getCameraPos();
-            section.rebuildChunkAsync(this.taskDispatcher, this.renderRegionCache, cameraPos);
-            section.setNotDirty();
+        int threads = Initializer.CONFIG.builderThreads;
+        if (threads <= 0) {
+            threads = Math.max((Runtime.getRuntime().availableProcessors() - 1) / 2, 1);
+        }
+        int bgBudget = Math.max(8, threads * 4);
+        int bgDispatched = 0;
+        boolean deferred = false;
+        var cameraPos = WorldRenderer.getCameraPos();
+
+        for (int i = 0; i < size; i++) {
+            RenderSection section = this.rebuildQueue.get(i);
+            boolean playerChanged = section.isDirtyFromPlayer();
+
+            if (!playerChanged && bgDispatched >= bgBudget) {
+                deferred = true;
+                continue;
+            }
+
+            if (section.rebuildChunkAsync(this.taskDispatcher, this.renderRegionCache, cameraPos)) {
+                section.setNotDirty();
+                if (!playerChanged) {
+                    bgDispatched++;
+                }
+            }
         }
         this.rebuildQueue.clear();
+
+        if (deferred) {
+            WorldRenderer.getInstance().scheduleGraphUpdate();
+        }
     }
 
     private boolean notInFrustum(RenderSection renderSection) {

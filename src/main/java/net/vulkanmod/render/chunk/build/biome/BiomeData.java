@@ -1,27 +1,24 @@
 package net.vulkanmod.render.chunk.build.biome;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.util.LinearCongruentialGenerator;
 import net.minecraft.util.Mth;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.vulkanmod.render.chunk.build.RenderRegion;
-import org.joml.Vector3f;
 
 public class BiomeData {
     private static final int ZOOM_LENGTH = 4;
     private static final int BIOMES_PER_SECTION = 4 * 4 * 4;
     private static final int SIZE = RenderRegion.SIZE * BIOMES_PER_SECTION;
 
-    Biome[] biomes = new Biome[SIZE];
+    final Biome[] biomes = new Biome[SIZE];
     private final long biomeZoomSeed;
 
-    int secX, secY, secZ;
+    final int secX, secY, secZ;
 
-    // Cached cell offsets
-    Vector3f[] offsets = new Vector3f[SIZE];
+    // Flat primitive cache for cell offsets (x, y, z per cell) + validity bitset
+    private final float[] offsetCoords = new float[SIZE * 3];
+    private final long[] offsetComputed = new long[(SIZE + 63) >> 6];
 
     public BiomeData(long biomeZoomSeed, int secX, int secY, int secZ) {
         this.biomeZoomSeed = biomeZoomSeed;
@@ -30,12 +27,7 @@ public class BiomeData {
         this.secZ = secZ;
     }
 
-    public void getBiomeData(Level level, LevelChunkSection chunkSection, int secX, int secY, int secZ) {
-        Biome defaultValue = level.registryAccess()
-                                  .lookupOrThrow(Registries.BIOME)
-                                  .getOrThrow(Biomes.PLAINS)
-                                  .value();
-
+    public void getBiomeData(Biome defaultValue, LevelChunkSection chunkSection, int secX, int secY, int secZ) {
         int baseIdx = getRelativeSectionIdx(secX, secY, secZ);
 
         for (int x = 0; x < 4; x++) {
@@ -90,8 +82,10 @@ public class BiomeData {
             int baseSectionIdx = getSectionIdx(cellX >> 2, cellY >> 2, cellZ >> 2);
             int cellIdx = baseSectionIdx + getRelativeIdx(cellX & 3, cellY & 3, cellZ & 3);
 
-            Vector3f offset = getOffset(baseSectionIdx, cellX, cellY, cellZ);
-            float distance = Mth.square(fCellX + offset.x()) + Mth.square(fCellY + offset.y()) + Mth.square(fCellZ + offset.z());
+            int coordBase = getOrComputeOffsetBase(cellIdx, cellX, cellY, cellZ);
+            float distance = Mth.square(fCellX + this.offsetCoords[coordBase])
+                           + Mth.square(fCellY + this.offsetCoords[coordBase + 1])
+                           + Mth.square(fCellZ + this.offsetCoords[coordBase + 2]);
 
             if (closestDistance > distance) {
                 closestCellIdx = cellIdx;
@@ -106,20 +100,18 @@ public class BiomeData {
         return getRelativeSectionIdx(secX - this.secX, secY - this.secY, secZ - this.secZ);
     }
 
-    private Vector3f getOffset(int baseIndex, int cellX, int cellY, int cellZ) {
-        int relCellX = cellX & 3;
-        int relCellY = cellY & 3;
-        int relCellZ = cellZ & 3;
-        int idx = baseIndex + getRelativeIdx(relCellX, relCellY, relCellZ);
-
-        if (this.offsets[idx] == null) {
-            this.offsets[idx] = computeCellOffset(this.biomeZoomSeed, cellX, cellY, cellZ);
+    private int getOrComputeOffsetBase(int idx, int cellX, int cellY, int cellZ) {
+        int wordIdx = idx >>> 6;
+        long bit = 1L << (idx & 63);
+        int coordBase = idx * 3;
+        if ((this.offsetComputed[wordIdx] & bit) == 0L) {
+            this.offsetComputed[wordIdx] |= bit;
+            computeCellOffset(this.biomeZoomSeed, cellX, cellY, cellZ, this.offsetCoords, coordBase);
         }
-
-        return this.offsets[idx];
+        return coordBase;
     }
 
-    private static Vector3f computeCellOffset(long l, int cellX, int cellY, int cellZ) {
+    private static void computeCellOffset(long l, int cellX, int cellY, int cellZ, float[] out, int outBase) {
         long seed;
         seed = LinearCongruentialGenerator.next(l, cellX);
         seed = LinearCongruentialGenerator.next(seed, cellY);
@@ -128,13 +120,11 @@ public class BiomeData {
         seed = LinearCongruentialGenerator.next(seed, cellY);
         seed = LinearCongruentialGenerator.next(seed, cellZ);
 
-        float xOffset = getFiddle(seed);
+        out[outBase] = getFiddle(seed);
         seed = LinearCongruentialGenerator.next(seed, l);
-        float yOffset = getFiddle(seed);
+        out[outBase + 1] = getFiddle(seed);
         seed = LinearCongruentialGenerator.next(seed, l);
-        float zOffset = getFiddle(seed);
-
-        return new Vector3f(xOffset, yOffset, zOffset);
+        out[outBase + 2] = getFiddle(seed);
     }
 
     private static float getFiddle(long l) {

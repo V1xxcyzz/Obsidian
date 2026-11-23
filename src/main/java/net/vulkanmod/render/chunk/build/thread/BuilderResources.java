@@ -1,5 +1,6 @@
 package net.vulkanmod.render.chunk.build.thread;
 
+import net.minecraft.world.level.block.state.BlockState;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.chunk.RenderSection;
 import net.vulkanmod.render.chunk.build.renderer.BlockRenderer;
@@ -14,6 +15,8 @@ import net.vulkanmod.render.chunk.build.light.flat.FlatLightPipeline;
 import net.vulkanmod.render.chunk.build.light.smooth.NewSmoothLightPipeline;
 import net.vulkanmod.render.chunk.build.light.smooth.SmoothLightPipeline;
 
+import java.util.BitSet;
+
 public class BuilderResources {
     public final ThreadBuilderPack builderPack = new ThreadBuilderPack();
     public final TintCache tintCache = new TintCache();
@@ -23,6 +26,8 @@ public class BuilderResources {
 
     public final ArrayLightDataCache lightDataCache = new ArrayLightDataCache();
     public final QuadLightData quadLightData = new QuadLightData();
+    public final BlockState[] blockDataBuffer = new BlockState[RenderRegion.BLOCK_COUNT];
+    public final BitSet animatedSpriteBits = new BitSet();
 
     private RenderRegion region;
 

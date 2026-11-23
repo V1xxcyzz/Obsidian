@@ -23,6 +23,7 @@ public class AreaBuffer {
     private final Int2ReferenceOpenHashMap<Segment> usedSegments = new Int2ReferenceOpenHashMap<>();
 
     Segment first, last;
+    Segment freeFirst;
 
     private Buffer buffer;
 
@@ -40,6 +41,29 @@ public class AreaBuffer {
 
         segments++;
         last = first = s;
+        addFreeSegment(s);
+    }
+
+    private void addFreeSegment(Segment s) {
+        s.prevFree = null;
+        s.nextFree = this.freeFirst;
+        if (this.freeFirst != null) {
+            this.freeFirst.prevFree = s;
+        }
+        this.freeFirst = s;
+    }
+
+    private void removeFreeSegment(Segment s) {
+        if (s.prevFree != null) {
+            s.prevFree.nextFree = s.nextFree;
+        } else if (this.freeFirst == s) {
+            this.freeFirst = s.nextFree;
+        }
+        if (s.nextFree != null) {
+            s.nextFree.prevFree = s.prevFree;
+        }
+        s.prevFree = null;
+        s.nextFree = null;
     }
 
     private Buffer allocateBuffer() {
@@ -57,6 +81,7 @@ public class AreaBuffer {
             throw new RuntimeException("Unaligned buffer");
 
         Segment segment = findSegment(size);
+        removeFreeSegment(segment);
 
         if (segment.size - size > 0) {
             Segment s1 = new Segment(segment.offset + size, segment.size - size);
@@ -68,6 +93,7 @@ public class AreaBuffer {
                 this.last = s1;
 
             segment.bindNext(s1);
+            addFreeSegment(s1);
 
             segment.size = size;
         }
@@ -113,6 +139,7 @@ public class AreaBuffer {
             throw new RuntimeException("Unaligned buffer");
 
         Segment segment = findSegment(size);
+        removeFreeSegment(segment);
 
         if (segment.size - size > 0) {
             Segment s1 = new Segment(segment.offset + size, segment.size - size);
@@ -124,6 +151,7 @@ public class AreaBuffer {
                 this.last = s1;
 
             segment.bindNext(s1);
+            addFreeSegment(s1);
 
             segment.size = size;
         }
@@ -144,14 +172,18 @@ public class AreaBuffer {
     public Segment findSegment(int size) {
         Segment segment = null;
 
-        Segment segment1 = this.first;
+        Segment segment1 = this.freeFirst;
         while (segment1 != null) {
-            if (segment1.isFree() && segment1.size >= size) {
-                if (segment == null || segment1.size < segment.size)
+            if (segment1.size >= size) {
+                if (segment == null || segment1.size < segment.size) {
                     segment = segment1;
+                    if (segment.size == size) {
+                        return segment;
+                    }
+                }
             }
 
-            segment1 = segment1.next;
+            segment1 = segment1.nextFree;
         }
 
         if (segment == null || segment.size < size) {
@@ -164,10 +196,9 @@ public class AreaBuffer {
     public Segment reallocate(int uploadSize) {
         int oldSize = this.size;
 
-        int minIncrement = this.size >> 3;
+        int minIncrement = this.size >> 1;
         minIncrement = (int) Util.align(minIncrement, this.elementSize);
 
-//        int increment = Math.max(minIncrement, uploadSize << 1);
         int increment = Math.max(minIncrement, uploadSize);
 
         if (increment < uploadSize)
@@ -195,6 +226,7 @@ public class AreaBuffer {
             segments++;
 
             last.bindNext(segment);
+            addFreeSegment(segment);
 
             last = segment;
         }
@@ -279,14 +311,17 @@ public class AreaBuffer {
 
         segment.free = true;
         segment.paramsPtr = -1;
+        addFreeSegment(segment);
 
         Segment next = segment.next;
         if (next != null && next.isFree()) {
+            removeFreeSegment(next);
             mergeSegments(segment, next);
         }
 
         Segment prev = segment.prev;
         if (prev != null && prev.isFree()) {
+            removeFreeSegment(segment);
             mergeSegments(prev, segment);
         }
     }
@@ -403,6 +438,7 @@ public class AreaBuffer {
         long paramsPtr;
 
         Segment next, prev;
+        Segment nextFree, prevFree;
 
         private Segment(int offset, int size) {
             this.offset = offset;

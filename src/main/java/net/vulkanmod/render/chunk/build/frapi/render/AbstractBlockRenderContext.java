@@ -66,6 +66,7 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 		protected void rehash(int i) {
 		}
 	};
+	private final ShapePairKey occlusionLookupKey = new ShapePairKey(null, null);
 
 	protected final QuadLightData quadLightData = new QuadLightData();
 	protected LightPipeline smoothLightPipeline;
@@ -159,9 +160,10 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 				return false;
 			}
 
-			ShapePairKey blockStatePairKey = new ShapePairKey(shape, adjShape);
+			ShapePairKey lookupKey = this.occlusionLookupKey;
+			lookupKey.set(shape, adjShape);
 
-			byte b = occlusionCache.getAndMoveToFirst(blockStatePairKey);
+			byte b = occlusionCache.getAndMoveToFirst(lookupKey);
 			if (b != 127) {
 				return b != 0;
 			} else {
@@ -171,7 +173,7 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 					occlusionCache.removeLastByte();
 				}
 
-				occlusionCache.putAndMoveToFirst(blockStatePairKey, (byte) (bl ? 1 : 0));
+				occlusionCache.putAndMoveToFirst(new ShapePairKey(shape, adjShape), (byte) (bl ? 1 : 0));
 				return bl;
 			}
 		}
@@ -268,16 +270,29 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 
 	}
 
-	// TODO move elsewhere
-	record ShapePairKey(VoxelShape first, VoxelShape second) {
-		public boolean equals(Object object) {
-			if (object instanceof ShapePairKey shapePairKey && this.first == shapePairKey.first && this.second == shapePairKey.second) {
-				return true;
-			}
+	static final class ShapePairKey {
+		VoxelShape first;
+		VoxelShape second;
 
+		ShapePairKey(VoxelShape first, VoxelShape second) {
+			this.first = first;
+			this.second = second;
+		}
+
+		void set(VoxelShape first, VoxelShape second) {
+			this.first = first;
+			this.second = second;
+		}
+
+		@Override
+		public boolean equals(Object object) {
+			if (object instanceof ShapePairKey shapePairKey) {
+				return this.first == shapePairKey.first && this.second == shapePairKey.second;
+			}
 			return false;
 		}
 
+		@Override
 		public int hashCode() {
 			return System.identityHashCode(this.first) * 31 + System.identityHashCode(this.second);
 		}

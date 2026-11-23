@@ -1,10 +1,10 @@
 {
   "vulkanmod.options.unknown": "Unknown",
 
-  "vulkanmod.options.pages.video": "Video",
-  "vulkanmod.options.pages.graphics": "Graphics",
-  "vulkanmod.options.pages.optimizations": "Optimizations",
-  "vulkanmod.options.pages.other": "Other",
+  "vulkanmod.options.pages.video": "General",
+  "vulkanmod.options.pages.graphics": "Quality",
+  "vulkanmod.options.pages.optimizations": "Performance",
+  "vulkanmod.options.pages.other": "Advanced",
 
   "vulkanmod.options.performanceImpact": "Performance impact: %s",
   "vulkanmod.options.performanceImpact.low": "Low",
@@ -30,7 +30,9 @@
   "vulkanmod.options.deviceSelector.tooltip": "Current device",
 
   "vulkanmod.options.entityCulling": "Entity Culling",
-  "vulkanmod.options.entityCulling.tooltip": "Enables culling for entities on not visible sections.",
+  "vulkanmod.options.entityCulling.tooltip": "Enables frustum and section visibility culling for entities.",
+  "vulkanmod.options.blockEntityCulling": "Block Entity Culling",
+  "vulkanmod.options.blockEntityCulling.tooltip": "Frustum-culls individual block entities (chests, signs, banners, beacons) to reduce CPU and draw overhead.",
 
   "vulkanmod.options.frameQueue": "Render queue size",
   "vulkanmod.options.frameQueue.tooltip": "Higher values might help stabilize frametime but will increase input lag.",
@@ -58,5 +60,21 @@
 
   "vulkanmod.options.textureAnimations": "Texture Animations",
 
-  "vulkanmod.options.searchFieldPlaceholder": "Search Graphics Settings"
+  "vulkanmod.options.asyncChunkUploads": "Async Chunk Uploads",
+  "vulkanmod.options.asyncChunkUploads.tooltip": "Synchronizes chunk uploads on the GPU with semaphores instead of stalling the CPU at frame end. Greatly improves frame pacing when loading chunks.",
+  "vulkanmod.options.chunkUploadBudget": "Chunk Upload Budget",
+  "vulkanmod.options.chunkUploadBudget.unlimited": "Unlimited",
+  "vulkanmod.options.chunkUploadBudget.tooltip": "Limits background chunk upload time per frame to prevent micro-stutters during world streaming. Player block edits always upload immediately.",
+  "vulkanmod.options.fastTerrainSampling": "Fast Terrain Sampling",
+  "vulkanmod.options.fastTerrainSampling.tooltip": "Uses a crisp nearest-neighbor mipmapped sampler and skips vanilla analytic pixel-edge AA shader math for extra GPU FPS. Off by default for 100% vanilla visuals.",
+  "vulkanmod.options.animateOnlyVisibleTextures": "Animate Only Visible Textures",
+  "vulkanmod.options.animateOnlyVisibleTextures.tooltip": "Only ticks and uploads animated block textures that are present in visible chunk sections, reducing CPU and GPU transfer overhead.",
+  "vulkanmod.options.hudMode": "FPS / VRAM Overlay",
+  "vulkanmod.options.hudMode.fps": "FPS Only",
+  "vulkanmod.options.hudMode.detailed": "FPS + VRAM + Chunks",
+  "vulkanmod.options.hudMode.tooltip": "Displays a lightweight corner overlay with FPS, VRAM usage, and visible chunk count without opening F3.",
+  "vulkanmod.options.persistentPipelineCache": "Persistent Pipeline Cache",
+  "vulkanmod.options.persistentPipelineCache.tooltip": "Saves compiled Vulkan graphics pipelines to disk to reduce shader hitching on subsequent launches.",
+
+  "vulkanmod.options.searchFieldPlaceholder": "Search Settings..."
 }

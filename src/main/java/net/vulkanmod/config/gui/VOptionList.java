@@ -227,10 +227,10 @@ public class VOptionList extends GuiElement {
             int scrollbarPosition = this.getScrollbarPosition();
             int thickness = 3;
 
-            int backgroundColor = ColorUtil.ARGB.pack(0.8f, 0.8f, 0.8f, 0.2f);
+            int backgroundColor = ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.12f);
             GuiRenderer.fill(scrollbarPosition, this.getY(), scrollbarPosition + thickness, this.getY() + height, backgroundColor);
 
-            int barColor = ColorUtil.ARGB.pack(0.3f, 0.0f, 0.0f, 0.6f);
+            int barColor = ColorUtil.ARGB.multiplyAlpha(net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT, 0.85f);
             GuiRenderer.fill(scrollbarPosition, barY, scrollbarPosition + thickness, barY + barHeight, barColor);
         }
     }

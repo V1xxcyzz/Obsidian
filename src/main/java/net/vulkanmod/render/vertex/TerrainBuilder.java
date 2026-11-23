@@ -51,6 +51,15 @@ public class TerrainBuilder {
         return this.bufferBuilders[i];
     }
 
+    public boolean hasVertices() {
+        for (TerrainBufferBuilder bufferBuilder : this.bufferBuilders) {
+            if (bufferBuilder.getVertices() > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void ensureIndexCapacity(int size) {
         if (size > this.indexBufferCapacity) {
             int capacity = this.indexBufferCapacity;

@@ -37,6 +37,8 @@ public class VkRenderPass implements RenderPass {
     protected final HashMap<String, GpuBufferSlice> uniforms = new HashMap<>();
     protected final HashMap<String, TextureViewAndSampler> samplers = new HashMap<>();
     protected final Set<String> dirtyUniforms = new HashSet<>();
+    protected boolean uniformsDirty = true;
+    protected boolean samplersDirty = true;
     protected int pushedDebugGroups;
 
     private final boolean autoManaged;
@@ -77,6 +79,8 @@ public class VkRenderPass implements RenderPass {
     public void setPipeline(RenderPipeline renderPipeline) {
         if (this.pipeline == null || this.pipeline != renderPipeline) {
             this.dirtyUniforms.addAll(this.uniforms.keySet());
+            this.uniformsDirty = true;
+            this.samplersDirty = true;
         }
 
 
@@ -97,12 +101,14 @@ public class VkRenderPass implements RenderPass {
         }
 
         this.dirtyUniforms.add(string);
+        this.samplersDirty = true;
     }
 
     @Override
     public void setUniform(String string, GpuBuffer gpuBuffer) {
         this.uniforms.put(string, gpuBuffer.slice());
         this.dirtyUniforms.add(string);
+        this.uniformsDirty = true;
     }
 
     @Override
@@ -113,6 +119,7 @@ public class VkRenderPass implements RenderPass {
         } else {
             this.uniforms.put(string, gpuBufferSlice);
             this.dirtyUniforms.add(string);
+            this.uniformsDirty = true;
         }
     }
 

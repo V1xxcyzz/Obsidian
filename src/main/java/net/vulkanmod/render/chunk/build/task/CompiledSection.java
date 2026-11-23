@@ -13,6 +13,7 @@ public class CompiledSection {
     boolean isCompletelyEmpty = false;
     final List<BlockEntity> blockEntities = Lists.newArrayList();
     @Nullable QuadSorter.SortState transparencyState;
+    public int @Nullable [] animatedSpriteIndices;
 
     public boolean hasTransparencyState() {
         return this.transparencyState != null;

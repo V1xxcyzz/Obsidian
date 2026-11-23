@@ -53,7 +53,9 @@ public abstract class OptionWidget<O extends Option<?>> extends VAbstractWidget 
         int xPadding = 0;
         int yPadding = 0;
 
-        int color = ColorUtil.ARGB.pack(0.0f, 0.0f, 0.0f, 0.45f);
+        int color = this.active
+                ? net.vulkanmod.config.gui.util.VGuiConstants.COLOR_PANEL_BG
+                : net.vulkanmod.config.gui.util.VGuiConstants.COLOR_PANEL_BG_DISABLED;
         GuiRenderer.fill(this.x - xPadding, this.y - yPadding, this.x + this.width + xPadding, this.y + this.height + yPadding, color);
 
         this.renderHovering(0, 0);

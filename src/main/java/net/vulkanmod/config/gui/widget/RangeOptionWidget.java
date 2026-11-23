@@ -30,19 +30,23 @@ public class RangeOptionWidget extends OptionWidget<RangeOption> {
 
             int y0 = (int) (this.y + this.height * 0.5f - 1.0f);
             int y1 = (int) (y0 + 2.0f);
-            GuiRenderer.fill(this.controlX, y0, this.controlX + this.controlWidth, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.1f));
-            GuiRenderer.fill(this.controlX, y0, valueX - halfWidth, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.3f));
+            GuiRenderer.fill(this.controlX, y0, this.controlX + this.controlWidth, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.14f));
+            GuiRenderer.fill(this.controlX, y0, Math.max(this.controlX, valueX - halfWidth), y1,
+                    ColorUtil.ARGB.multiplyAlpha(net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT, 0.85f));
 
-            int color = ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.3f);
-            GuiRenderer.renderBorder(valueX - halfWidth, y0 - halfHeight, valueX + halfWidth, y1 + halfHeight, 1, color);
+            GuiRenderer.fill(valueX - halfWidth, y0 - halfHeight, valueX + halfWidth, y1 + halfHeight, 0xFFFFFFFF);
+            GuiRenderer.renderBorder(valueX - halfWidth, y0 - halfHeight, valueX + halfWidth, y1 + halfHeight, 1,
+                    net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT);
 
         } else {
-            int y0 = (int) (this.y + this.height - 5.0f);
-            int y1 = (int) (y0 + 1.5f);
-            GuiRenderer.fill(this.controlX, y0, this.controlX + this.controlWidth, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.3f));
+            int y0 = (int) (this.y + this.height - 4.0f);
+            int y1 = (int) (y0 + 2.0f);
+            GuiRenderer.fill(this.controlX, y0, this.controlX + this.controlWidth, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.16f));
 
-            float alpha = this.active ? 0.8f : 0.3f;
-            GuiRenderer.fill(this.controlX, y0, valueX, y1, ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, alpha));
+            int trackColor = this.active
+                    ? ColorUtil.ARGB.multiplyAlpha(net.vulkanmod.config.gui.util.VGuiConstants.COLOR_ACCENT, 0.9f)
+                    : ColorUtil.ARGB.pack(1.0f, 1.0f, 1.0f, 0.3f);
+            GuiRenderer.fill(this.controlX, y0, valueX, y1, trackColor);
         }
 
         int color = this.active ? 0xFFFFFFFF : 0xFFA0A0A0;

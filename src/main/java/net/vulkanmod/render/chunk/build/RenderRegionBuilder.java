@@ -2,9 +2,12 @@ package net.vulkanmod.render.chunk.build;
 
 import it.unimi.dsi.fastutil.longs.Long2ReferenceLinkedOpenHashMap;
 import net.minecraft.core.SectionPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -43,6 +46,10 @@ public class RenderRegionBuilder {
 
         long biomeZoomSeed = BiomeManagerExtended.of(level.getBiomeManager()).getBiomeZoomSeed();
         BiomeData biomeData = new BiomeData(biomeZoomSeed, minSecX, minSecY, minSecZ);
+        Biome defaultBiome = level.registryAccess()
+                                  .lookupOrThrow(Registries.BIOME)
+                                  .getOrThrow(Biomes.PLAINS)
+                                  .value();
 
         final int minHeightSec = level.getMinY() >> 4;
         for (int x = minSecX; x <= maxSecX; ++x) {
@@ -66,7 +73,7 @@ public class RenderRegionBuilder {
 
                     lightData[idx] = dataLayers;
 
-                    biomeData.getBiomeData(level, section, relX, relY, relZ);
+                    biomeData.getBiomeData(defaultBiome, section, relX, relY, relZ);
                 }
             }
         }

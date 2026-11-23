@@ -80,6 +80,25 @@ public class Renderer {
     private Pipeline boundPipeline;
     private long boundPipelineHandle;
 
+    private long boundDescriptorLayout;
+    private long boundDescriptorSet;
+    private int boundDescriptorBindPoint = -1;
+    private int boundDynamicOffsetCount = -1;
+    private final int[] boundDynamicOffsets = new int[16];
+    private int bufferBindEpoch = 0;
+
+    private long pushConstantPtr = MemoryUtil.nmemAlignedAlloc(16, 128);
+    private int pushConstantCapacity = 128;
+
+    private int lastViewportX = Integer.MIN_VALUE;
+    private int lastViewportY = Integer.MIN_VALUE;
+    private int lastViewportW = Integer.MIN_VALUE;
+    private int lastViewportH = Integer.MIN_VALUE;
+    private int lastScissorX = Integer.MIN_VALUE;
+    private int lastScissorY = Integer.MIN_VALUE;
+    private int lastScissorW = Integer.MIN_VALUE;
+    private int lastScissorH = Integer.MIN_VALUE;
+
     private Drawer drawer;
 
     private SwapChain swapChain;
@@ -463,6 +482,7 @@ public class Renderer {
             }
 
             vkWaitForFences(device, inFlightFences.get(currentFrame), true, VUtil.UINT64_MAX);
+            this.invalidateBoundState();
 
             this.beginMainRenderPass(stack);
         }
@@ -536,7 +556,9 @@ public class Renderer {
     private void waitFences() {
         // Make sure there are no uploads/transitions scheduled
         Synchronization.INSTANCE.waitFences();
-        Vulkan.getStagingBuffer().reset();
+        if (Synchronization.INSTANCE.getWaitSemaphoreCount() == 0) {
+            Vulkan.getStagingBuffer().reset();
+        }
     }
 
     private void resetDescriptors() {
@@ -545,8 +567,62 @@ public class Renderer {
         }
 
         usedPipelines.clear();
+        invalidateBoundState();
+    }
+
+    public void invalidateBoundState() {
         boundPipeline = null;
         boundPipelineHandle = 0;
+        boundDescriptorLayout = 0;
+        boundDescriptorSet = 0;
+        boundDescriptorBindPoint = -1;
+        boundDynamicOffsetCount = -1;
+        bufferBindEpoch++;
+        lastViewportW = Integer.MIN_VALUE;
+        lastScissorW = Integer.MIN_VALUE;
+    }
+
+    public void invalidateBufferBindings() {
+        bufferBindEpoch++;
+    }
+
+    public int getBufferBindEpoch() {
+        return bufferBindEpoch;
+    }
+
+    public boolean tryBindDescriptorSet(VkCommandBuffer commandBuffer, int bindPoint, long pipelineLayout,
+                                        long descriptorSet, IntBuffer dynamicOffsets, int offsetCount) {
+        if (commandBuffer != currentCmdBuffer || offsetCount > boundDynamicOffsets.length) {
+            boundDescriptorLayout = 0;
+            boundDescriptorSet = 0;
+            boundDynamicOffsetCount = -1;
+            return true;
+        }
+
+        if (boundDescriptorBindPoint == bindPoint
+                && boundDescriptorLayout == pipelineLayout
+                && boundDescriptorSet == descriptorSet
+                && boundDynamicOffsetCount == offsetCount) {
+            boolean same = true;
+            for (int i = 0; i < offsetCount; ++i) {
+                if (boundDynamicOffsets[i] != dynamicOffsets.get(i)) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) {
+                return false;
+            }
+        }
+
+        boundDescriptorBindPoint = bindPoint;
+        boundDescriptorLayout = pipelineLayout;
+        boundDescriptorSet = descriptorSet;
+        boundDynamicOffsetCount = offsetCount;
+        for (int i = 0; i < offsetCount; ++i) {
+            boundDynamicOffsets[i] = dynamicOffsets.get(i);
+        }
+        return true;
     }
 
     void waitForSwapChain() {
@@ -582,7 +658,7 @@ public class Renderer {
         int newFramesNum = Initializer.CONFIG.frameQueueSize;
 
         if (framesNum != newFramesNum) {
-            UploadManager.INSTANCE.submitUploads();
+            UploadManager.INSTANCE.syncUploads();
 
             framesNum = newFramesNum;
             MemoryManager.getInstance().freeAllBuffers();
@@ -656,15 +732,15 @@ public class Renderer {
         VkCommandBuffer commandBuffer = currentCmdBuffer;
 
         PushConstants pushConstants = pipeline.getPushConstants();
-
-        try (MemoryStack stack = stackPush()) {
-            ByteBuffer buffer = stack.malloc(pushConstants.getSize());
-            long ptr = MemoryUtil.memAddress0(buffer);
-            pushConstants.update(ptr);
-
-            nvkCmdPushConstants(commandBuffer, pipeline.getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, pushConstants.getSize(), ptr);
+        int size = pushConstants.getSize();
+        if (size > this.pushConstantCapacity) {
+            MemoryUtil.nmemAlignedFree(this.pushConstantPtr);
+            this.pushConstantCapacity = size;
+            this.pushConstantPtr = MemoryUtil.nmemAlignedAlloc(16, size);
         }
 
+        pushConstants.update(this.pushConstantPtr);
+        nvkCmdPushConstants(commandBuffer, pipeline.getLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, size, this.pushConstantPtr);
     }
 
     public Pipeline getBoundPipeline() {
@@ -701,6 +777,13 @@ public class Renderer {
 
     public CommandPool.CommandBuffer getTransferCb() {
         return transferCbs.get(currentFrame);
+    }
+
+    public long getInFlightFence(int frame) {
+        if (inFlightFences == null || frame < 0 || frame >= inFlightFences.size()) {
+            return 0L;
+        }
+        return inFlightFences.get(frame);
     }
 
     private static void resetDynamicState(VkCommandBuffer commandBuffer) {
@@ -828,6 +911,15 @@ public class Renderer {
         if (!INSTANCE.recordingCmds)
             return;
 
+        if (INSTANCE.lastViewportX == x && INSTANCE.lastViewportY == y
+                && INSTANCE.lastViewportW == width && INSTANCE.lastViewportH == height) {
+            return;
+        }
+        INSTANCE.lastViewportX = x;
+        INSTANCE.lastViewportY = y;
+        INSTANCE.lastViewportW = width;
+        INSTANCE.lastViewportH = height;
+
         VkViewport.Buffer viewport = VkViewport.malloc(1, stack);
         viewport.x(x);
         viewport.y(height + y);
@@ -843,15 +935,25 @@ public class Renderer {
         if (!INSTANCE.recordingCmds || INSTANCE.boundFramebuffer == null)
             return;
 
+        Framebuffer framebuffer = INSTANCE.boundFramebuffer;
+        int framebufferHeight = framebuffer.getHeight();
+
+        x = Math.max(0, x);
+        width = Math.min(width, framebuffer.getWidth());
+        int scissorY = framebufferHeight - (y + height);
+
+        if (INSTANCE.lastScissorX == x && INSTANCE.lastScissorY == scissorY
+                && INSTANCE.lastScissorW == width && INSTANCE.lastScissorH == height) {
+            return;
+        }
+        INSTANCE.lastScissorX = x;
+        INSTANCE.lastScissorY = scissorY;
+        INSTANCE.lastScissorW = width;
+        INSTANCE.lastScissorH = height;
+
         try (MemoryStack stack = stackPush()) {
-            Framebuffer framebuffer = INSTANCE.boundFramebuffer;
-            int framebufferHeight = framebuffer.getHeight();
-
-            x = Math.max(0, x);
-            width = Math.min(width, framebuffer.getWidth());
-
             VkRect2D.Buffer scissor = VkRect2D.malloc(1, stack);
-            scissor.offset().set(x, framebufferHeight - (y + height));
+            scissor.offset().set(x, scissorY);
             scissor.extent().set(width, height);
 
             vkCmdSetScissor(INSTANCE.currentCmdBuffer, 0, scissor);
@@ -861,6 +963,17 @@ public class Renderer {
     public static void resetScissor() {
         if (INSTANCE.boundFramebuffer == null)
             return;
+
+        int width = INSTANCE.boundFramebuffer.getWidth();
+        int height = INSTANCE.boundFramebuffer.getHeight();
+        if (INSTANCE.lastScissorX == 0 && INSTANCE.lastScissorY == 0
+                && INSTANCE.lastScissorW == width && INSTANCE.lastScissorH == height) {
+            return;
+        }
+        INSTANCE.lastScissorX = 0;
+        INSTANCE.lastScissorY = 0;
+        INSTANCE.lastScissorW = width;
+        INSTANCE.lastScissorH = height;
 
         try (MemoryStack stack = stackPush()) {
             VkRect2D.Buffer scissor = INSTANCE.boundFramebuffer.scissor(stack);

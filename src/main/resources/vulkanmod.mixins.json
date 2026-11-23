@@ -84,6 +84,7 @@
     "screen.OptionsScreenM",
 
     "texture.SpriteContentsAnimatedTextureM",
+    "texture.TextureAtlasM",
     "texture.TextureAtlasSpriteMixin",
     "texture.image.NativeImageAccessor",
     "texture.update.MLightTexture",

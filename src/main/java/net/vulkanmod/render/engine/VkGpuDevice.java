@@ -78,6 +78,10 @@ public class VkGpuDevice implements GpuDevice {
         return this.encoder;
     }
 
+    public VkCommandEncoder getEncoder() {
+        return this.encoder;
+    }
+
     @Override
     public GpuSampler createSampler(AddressMode addressMode, AddressMode addressMode2, FilterMode filterMode,
                                     FilterMode filterMode2, int maxAnisotropy, OptionalDouble maxLod) {
@@ -264,8 +268,7 @@ public class VkGpuDevice implements GpuDevice {
 
     @Override
     public int getMaxSupportedAnisotropy() {
-        // TODO query max supported anisotropy
-        return 16;
+        return Math.max(1, (int) DeviceManager.deviceProperties().limits().maxSamplerAnisotropy());
     }
 
     @Override

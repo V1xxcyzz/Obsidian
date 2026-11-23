@@ -29,6 +29,7 @@ import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.util.profiling.Zone;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.shader.PipelineManager;
@@ -102,6 +103,7 @@ public class WorldRenderer {
 
     private SectionGraph sectionGraph;
     private boolean graphNeedsUpdate;
+    private Frustum currentFrustum;
 
     private final Set<BlockEntity> globalBlockEntities = Sets.newHashSet();
 
@@ -159,6 +161,7 @@ public class WorldRenderer {
     }
 
     public void setupRenderer(Camera camera, Frustum frustum, boolean isCapturedFrustum, boolean spectator) {
+        this.currentFrustum = frustum;
         Profiler profiler = Profiler.getMainProfiler();
         profiler.push("Setup_Renderer");
 
@@ -180,12 +183,15 @@ public class WorldRenderer {
         int sectionY = SectionPos.posToSectionCoord(cameraY);
         int sectionZ = SectionPos.posToSectionCoord(cameraZ);
 
+        boolean cameraMoved = false;
+        boolean sectionChanged = false;
         profiler.push("reposition");
         if (this.lastCameraSectionX != sectionX || this.lastCameraSectionY != sectionY || this.lastCameraSectionZ != sectionZ) {
             this.lastCameraSectionX = sectionX;
             this.lastCameraSectionY = sectionY;
             this.lastCameraSectionZ = sectionZ;
             this.sectionGrid.repositionCamera(cameraX, cameraZ);
+            sectionChanged = true;
         }
         profiler.pop();
 
@@ -196,12 +202,12 @@ public class WorldRenderer {
 
         mcProfiler.popPush("update");
 
-        boolean cameraMoved = false;
         float d_xRot = Math.abs(camera.xRot() - this.lastCamRotX);
         float d_yRot = Math.abs(camera.yRot() - this.lastCamRotY);
-        cameraMoved |= d_xRot > 2.0f || d_yRot > 2.0f;
-
-        cameraMoved |= cameraX != this.lastCameraX || cameraY != this.lastCameraY || cameraZ != this.lastCameraZ;
+        float dx = cameraX - this.lastCameraX;
+        float dy = cameraY - this.lastCameraY;
+        float dz = cameraZ - this.lastCameraZ;
+        cameraMoved |= sectionChanged || d_xRot > 2.0f || d_yRot > 2.0f || (dx * dx + dy * dy + dz * dz) > 0.0625f;
         this.graphNeedsUpdate |= cameraMoved;
 
         if (!isCapturedFrustum) {
@@ -357,12 +363,24 @@ public class WorldRenderer {
         TextureManager textureManager = Minecraft.getInstance().getTextureManager();
         AbstractTexture atlasTexture = textureManager.getTexture(TextureAtlas.LOCATION_BLOCKS);
         var texView = atlasTexture.getTextureView();
-        boolean useAnisotropy = this.minecraft.options.textureFiltering().get() == TextureFilteringMethod.ANISOTROPIC;
+        TextureFilteringMethod filteringMethod = this.minecraft.options.textureFiltering().get();
+        boolean useAnisotropy = filteringMethod == TextureFilteringMethod.ANISOTROPIC;
         int maxAnisotropy = this.minecraft.options.maxAnisotropyValue();
         var texture = (VkGpuTexture)texView.texture();
 
         if (this.terrainSampler == 0L) {
-            this.terrainSampler = SamplerManager.getSampler(true, true, texture.getVulkanImage().mipLevels - 1, useAnisotropy, maxAnisotropy);
+            if (filteringMethod == TextureFilteringMethod.NONE && Initializer.CONFIG.fastTerrainSampling) {
+                this.terrainSampler = SamplerManager.getSampler(
+                        org.lwjgl.vulkan.VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                        org.lwjgl.vulkan.VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+                        org.lwjgl.vulkan.VK10.VK_FILTER_NEAREST,
+                        org.lwjgl.vulkan.VK10.VK_FILTER_NEAREST,
+                        org.lwjgl.vulkan.VK10.VK_SAMPLER_MIPMAP_MODE_LINEAR,
+                        texture.getVulkanImage().mipLevels - 1,
+                        false, 0, -1);
+            } else {
+                this.terrainSampler = SamplerManager.getSampler(true, true, texture.getVulkanImage().mipLevels - 1, useAnisotropy, maxAnisotropy);
+            }
         }
 
         texture.getVulkanImage().setSampler(this.terrainSampler);
@@ -386,13 +404,18 @@ public class WorldRenderer {
         IndexBuffer indexBuffer = Renderer.getDrawer().getQuadsIndexBuffer().getIndexBuffer();
         Renderer.getDrawer().bindIndexBuffer(Renderer.getCommandBuffer(), indexBuffer, indexBuffer.indexType.value);
 
+        UBO ub0 = pipeline.getUBO(0);
+        UBO ub1 = pipeline.getUBO(1);
         UBO sectionData = pipeline.getUBO(2);
         sectionData.setUseGlobalBuffer(false);
+        if (ub0 != null) ub0.setUpdate(true);
+        if (ub1 != null) ub1.setUpdate(true);
 
         int currentFrame = Renderer.getCurrentFrame();
         Set<TerrainRenderType> allowedRenderTypes = Initializer.CONFIG.uniqueOpaqueLayer ? TerrainRenderType.COMPACT_RENDER_TYPES : TerrainRenderType.SEMI_COMPACT_RENDER_TYPES;
         if (allowedRenderTypes.contains(renderType)) {
             renderType.setCutoutUniform();
+            boolean firstArea = true;
 
             for (Iterator<ChunkArea> iterator = this.sectionGraph.getChunkAreaQueue().iterator(isTranslucent); iterator.hasNext(); ) {
                 ChunkArea chunkArea = iterator.next();
@@ -408,15 +431,40 @@ public class WorldRenderer {
 
                     renderer.uploadAndBindUBOs(pipeline);
 
+                    if (firstArea) {
+                        if (ub0 != null) ub0.setUpdate(false);
+                        if (ub1 != null) ub1.setUpdate(false);
+                        firstArea = false;
+                    }
+
                     if (indirectDraw) {
-                        drawBuffers.buildDrawBatchesIndirect(cameraPos, indirectBuffers[currentFrame], queue, renderType);
+                        drawBuffers.buildDrawBatchesIndirect(cameraPos, indirectBuffers[currentFrame], queue, renderType,
+                                this.lastCameraSectionX, this.lastCameraSectionY, this.lastCameraSectionZ,
+                                this.sectionGraph.getLastFrame());
                     }
                     else {
                         drawBuffers.buildDrawBatchesDirect(cameraPos, queue, renderType);
                     }
+
+                    if (Initializer.CONFIG.animateOnlyVisibleTextures) {
+                        int tick = net.vulkanmod.render.texture.SpriteUpdateUtil.getCurrentTick();
+                        for (var secIt = queue.iterator(false); secIt.hasNext(); ) {
+                            RenderSection section = secIt.next();
+                            if (section.lastSpriteMarkTick != tick) {
+                                section.lastSpriteMarkTick = tick;
+                                int[] sprites = section.getCompiledSection().animatedSpriteIndices;
+                                if (sprites != null) {
+                                    net.vulkanmod.render.texture.SpriteUpdateUtil.markActiveSprites(sprites);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        if (ub0 != null) ub0.setUpdate(true);
+        if (ub1 != null) ub1.setUpdate(true);
 
         if (renderType == TerrainRenderType.CUTOUT || renderType == TerrainRenderType.TRIPWIRE) {
             indirectBuffers[currentFrame].submitUploads();
@@ -473,11 +521,17 @@ public class WorldRenderer {
         double camY = vec3.y();
         double camZ = vec3.z();
 
+        final boolean cullBlockEntities = Initializer.CONFIG.blockEntityCulling && this.currentFrustum != null;
+        final Frustum frustum = this.currentFrustum;
+
         for (RenderSection renderSection : this.sectionGraph.getBlockEntitiesSections()) {
             List<BlockEntity> list = renderSection.getCompiledSection().getBlockEntities();
             if (!list.isEmpty()) {
                 for (BlockEntity blockEntity : list) {
                     BlockPos blockPos = blockEntity.getBlockPos();
+                    if (cullBlockEntities && !isBlockEntityVisible(frustum, blockPos)) {
+                        continue;
+                    }
                     SortedSet<BlockDestructionProgress> sortedSet = destructionProgress.get(blockPos.asLong());
                     ModelFeatureRenderer.CrumblingOverlay crumblingOverlay;
                     if (sortedSet != null && !sortedSet.isEmpty()) {
@@ -505,6 +559,9 @@ public class WorldRenderer {
             if (blockEntity2.isRemoved()) {
                 iterator.remove();
             } else {
+                if (cullBlockEntities && !isGlobalBlockEntityVisible(frustum, blockEntity2.getBlockPos())) {
+                    continue;
+                }
                 BlockEntityRenderState blockEntityRenderState2 = this.blockEntityRenderDispatcher.tryExtractRenderState(blockEntity2, this.partialTick, null);
                 if (blockEntityRenderState2 != null) {
                     levelRenderState.blockEntityRenderStates.add(blockEntityRenderState2);
@@ -520,6 +577,22 @@ public class WorldRenderer {
             blockEntityRenderDispatcher.submit(blockEntityRenderState, poseStack, submitNodeStorage, levelRenderState.cameraRenderState);
             poseStack.popPose();
         }
+    }
+
+    private static boolean isBlockEntityVisible(Frustum frustum, BlockPos pos) {
+        // Inflate by 1 block to safely cover overhanging models (banners, signs, chests, enchanting tables)
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+        return frustum.isVisible(new AABB(x - 1.0, y - 1.0, z - 1.0, x + 2.0, y + 2.0, z + 2.0));
+    }
+
+    private static boolean isGlobalBlockEntityVisible(Frustum frustum, BlockPos pos) {
+        // Global BEs (beacons, end gateways, structure blocks) can have tall beams; inflate generously on Y
+        int x = pos.getX();
+        int y = pos.getY();
+        int z = pos.getZ();
+        return frustum.isVisible(new AABB(x - 2.0, y - 2.0, z - 2.0, x + 3.0, y + 256.0, z + 3.0));
     }
 
     public void resetSampler() {

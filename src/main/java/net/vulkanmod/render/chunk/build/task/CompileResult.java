@@ -15,6 +15,7 @@ import java.util.List;
 public class CompileResult {
     public final RenderSection renderSection;
     public final boolean fullUpdate;
+    public boolean highPriority;
 
     final List<BlockEntity> globalBlockEntities = new ArrayList<>();
     final List<BlockEntity> blockEntities = new ArrayList<>();

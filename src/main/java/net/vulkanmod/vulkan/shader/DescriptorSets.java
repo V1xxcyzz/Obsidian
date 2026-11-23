@@ -49,13 +49,16 @@ public class DescriptorSets {
     }
 
     public void bindSets(VkCommandBuffer commandBuffer, UniformBuffer uniformBuffer, int bindPoint) {
-        try (MemoryStack stack = stackPush()) {
+        this.updateUniforms(uniformBuffer);
 
-            this.updateUniforms(uniformBuffer);
+        try (MemoryStack stack = stackPush()) {
             this.updateDescriptorSet(stack, uniformBuffer);
 
-            vkCmdBindDescriptorSets(commandBuffer, bindPoint, pipeline.pipelineLayout,
-                                    0, stack.longs(currentSet), dynamicOffsets);
+            if (net.vulkanmod.vulkan.Renderer.getInstance().tryBindDescriptorSet(
+                    commandBuffer, bindPoint, pipeline.pipelineLayout, currentSet, dynamicOffsets, pipeline.buffers.size())) {
+                vkCmdBindDescriptorSets(commandBuffer, bindPoint, pipeline.pipelineLayout,
+                                        0, stack.longs(currentSet), dynamicOffsets);
+            }
         }
     }
 
@@ -77,17 +80,23 @@ public class DescriptorSets {
                 offset = (int) bufferSlice.getOffset();
             }
             else {
-                offset = (int) globalUB.getUsedBytes();
-                int alignedSize = UniformBuffer.getAlignedSize(ubo.getSize());
-                globalUB.checkCapacity(alignedSize);
-
-                if (ubo.shouldUpdate()) {
-                    ubo.update(globalUB.getPointer());
-                }
-                globalUB.updateOffset(alignedSize);
-
                 BufferSlice bufferSlice = ubo.getBufferSlice();
-                bufferSlice.set(globalUB, offset, alignedSize);
+                if (!ubo.shouldUpdate()
+                        && bufferSlice.getBuffer() == globalUB
+                        && this.boundUBs[i] == globalUB.getId()
+                        && bufferSlice.getOffset() < globalUB.getUsedBytes()) {
+                    offset = (int) bufferSlice.getOffset();
+                }
+                else {
+                    offset = (int) globalUB.getUsedBytes();
+                    int alignedSize = UniformBuffer.getAlignedSize(ubo.getSize());
+                    globalUB.checkCapacity(alignedSize);
+
+                    ubo.update(globalUB.getPointer());
+                    globalUB.updateOffset(alignedSize);
+
+                    bufferSlice.set(globalUB, offset, alignedSize);
+                }
             }
 
             this.dynamicOffsets.put(i, offset);
