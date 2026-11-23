@@ -3,9 +3,8 @@ package net.vulkanmod.mixin.profiling;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.DebugScreenOverlay;
-import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.profiling.HudOverlay;
 import net.vulkanmod.render.profiling.ProfilerOverlay;
@@ -27,7 +26,7 @@ public class GuiMixin {
     }
 
     @Inject(method = "render", at = @At(value = "RETURN"))
-    private void renderProfilerOverlay(GuiGraphics guiGraphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+    private void renderProfilerOverlay(GuiGraphicsExtractor guiGraphics, DeltaTracker deltaTracker, CallbackInfo ci) {
         if (!this.debugOverlay.showDebugScreen()) {
             if (ProfilerOverlay.shouldRender) {
                 ProfilerOverlay.INSTANCE.render(guiGraphics);

@@ -5,15 +5,18 @@ import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.GpuFence;
 import com.mojang.blaze3d.opengl.*;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.platform.DestFactor;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.PolygonMode;
 import com.mojang.blaze3d.platform.SourceFactor;
-import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.CommandEncoderBackend;
 import com.mojang.blaze3d.systems.GpuQuery;
 import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderPassBackend;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -58,7 +61,7 @@ import java.util.function.Supplier;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.*;
 
-public class VkCommandEncoder implements CommandEncoder {
+public class VkCommandEncoder implements CommandEncoderBackend {
     private static final Logger LOGGER = LogUtils.getLogger();
     private final VkGpuDevice device;
 
@@ -112,12 +115,17 @@ public class VkCommandEncoder implements CommandEncoder {
     }
 
     @Override
-    public RenderPass createRenderPass(Supplier<String> supplier, GpuTextureView colorAttachmentView, OptionalInt optionalInt) {
+    public boolean isInRenderPass() {
+        return this.inRenderPass;
+    }
+
+    @Override
+    public RenderPassBackend createRenderPass(Supplier<String> supplier, GpuTextureView colorAttachmentView, OptionalInt optionalInt) {
         return this.createRenderPass(supplier, colorAttachmentView, optionalInt, null, OptionalDouble.empty());
     }
 
     @Override
-    public RenderPass createRenderPass(Supplier<String> supplier, GpuTextureView colorAttachmentView, OptionalInt optionalInt, @Nullable GpuTextureView depthTexture, OptionalDouble optionalDouble) {
+    public RenderPassBackend createRenderPass(Supplier<String> supplier, GpuTextureView colorAttachmentView, OptionalInt optionalInt, @Nullable GpuTextureView depthTexture, OptionalDouble optionalDouble) {
         if (this.inRenderPass) {
             throw new IllegalStateException("Close the existing render pass before creating a new one!");
         } else {
@@ -148,7 +156,7 @@ public class VkCommandEncoder implements CommandEncoder {
                 if (j != 0) {
                     GlStateManager._disableScissorTest();
                     GlStateManager._depthMask(true);
-                    GlStateManager._colorMask(true, true, true, true);
+                    GlStateManager._colorMask(ColorTargetState.WRITE_ALL);
                     GlStateManager._clear(j);
                 }
 
@@ -180,7 +188,7 @@ public class VkCommandEncoder implements CommandEncoder {
                 if (j != 0) {
                     GlStateManager._disableScissorTest();
                     GlStateManager._depthMask(true);
-                    GlStateManager._colorMask(true, true, true, true);
+                    GlStateManager._colorMask(ColorTargetState.WRITE_ALL);
                     GlStateManager._clear(j);
                 }
 
@@ -385,7 +393,6 @@ public class VkCommandEncoder implements CommandEncoder {
         }
     }
 
-    @Override
     public GpuBuffer.MappedView mapBuffer(GpuBuffer gpuBuffer, boolean readable, boolean writable) {
         return this.mapBuffer(gpuBuffer.slice(), readable, writable);
     }
@@ -512,7 +519,6 @@ public class VkCommandEncoder implements CommandEncoder {
         }
     }
 
-    @Override
     public void writeToTexture(GpuTexture gpuTexture, NativeImage nativeImage) {
         int i = gpuTexture.getWidth(0);
         int j = gpuTexture.getHeight(0);
@@ -837,7 +843,7 @@ public class VkCommandEncoder implements CommandEncoder {
                 renderPass.setIndexBuffer(draw.indexBuffer() == null ? indexBuffer : draw.indexBuffer(), indexType2);
                 renderPass.setVertexBuffer(draw.slot(), draw.vertexBuffer());
 
-                if (GlRenderPass.VALIDATION) {
+                if (VkRenderPass.VALIDATION) {
                     if (renderPass.indexBuffer == null) {
                         throw new IllegalStateException("Missing index buffer");
                     }
@@ -886,7 +892,7 @@ public class VkCommandEncoder implements CommandEncoder {
 
     protected void executeDraw(VkRenderPass renderPass, int vertexOffset, int firstIndex, int vertexCount, @Nullable VertexFormat.IndexType indexType, int instanceCount) {
         if (this.trySetup(renderPass)) {
-            if (GlRenderPass.VALIDATION) {
+            if (VkRenderPass.VALIDATION) {
                 if (indexType != null) {
                     if (renderPass.indexBuffer == null) {
                         throw new IllegalStateException("Missing index buffer");
@@ -1080,8 +1086,9 @@ public class VkCommandEncoder implements CommandEncoder {
         if (this.lastPipeline != renderPipeline) {
             this.lastPipeline = renderPipeline;
 
-            DepthTestFunction depthFunc = renderPipeline.getDepthTestFunction();
-            if (depthFunc != DepthTestFunction.NO_DEPTH_TEST) {
+            DepthStencilState dss = renderPipeline.getDepthStencilState();
+            CompareOp depthFunc = dss.depthTest();
+            if (depthFunc != CompareOp.ALWAYS_PASS) {
                 VRenderSystem.depthTest = true;
                 VRenderSystem.depthFun = toVkDepthOp(depthFunc);
             } else {
@@ -1090,8 +1097,9 @@ public class VkCommandEncoder implements CommandEncoder {
 
             VRenderSystem.cullMode = renderPipeline.isCull() ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
 
-            if (renderPipeline.getBlendFunction().isPresent()) {
-                BlendFunction blendFunction = renderPipeline.getBlendFunction().get();
+            ColorTargetState cts = renderPipeline.getColorTargetState();
+            if (cts.blendFunction().isPresent()) {
+                BlendFunction blendFunction = cts.blendFunction().get();
                 PipelineState.blendInfo.enabled = true;
                 PipelineState.blendInfo.setBlendFuncSeparate(
                         toVkBlendFactor(blendFunction.sourceColor()),
@@ -1105,13 +1113,13 @@ public class VkCommandEncoder implements CommandEncoder {
 
             VRenderSystem.polygonMode = renderPipeline.getPolygonMode() == PolygonMode.WIREFRAME
                     ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-            VRenderSystem.depthMask = renderPipeline.isWriteDepth();
+            VRenderSystem.depthMask = dss.writeDepth();
             VRenderSystem.colorMask = PipelineState.ColorMask.getColorMask(
-                    renderPipeline.isWriteColor(), renderPipeline.isWriteColor(),
-                    renderPipeline.isWriteColor(), renderPipeline.isWriteAlpha());
+                    cts.writeRed(), cts.writeGreen(),
+                    cts.writeBlue(), cts.writeAlpha());
 
-            float biasConst = renderPipeline.getDepthBiasConstant();
-            float biasSlope = renderPipeline.getDepthBiasScaleFactor();
+            float biasConst = dss.depthBiasConstant();
+            float biasSlope = dss.depthBiasScaleFactor();
             if (biasConst == 0.0F && biasSlope == 0.0F) {
                 VRenderSystem.disablePolygonOffset();
             } else {
@@ -1119,25 +1127,22 @@ public class VkCommandEncoder implements CommandEncoder {
                 VRenderSystem.enablePolygonOffset();
             }
 
-            switch (renderPipeline.getColorLogic()) {
-                case NONE -> VRenderSystem.disableColorLogicOp();
-                case OR_REVERSE -> {
-                    VRenderSystem.enableColorLogicOp();
-                    VRenderSystem.logicOpFun = VK_LOGIC_OP_OR_REVERSE;
-                }
-            }
+            VRenderSystem.disableColorLogicOp();
 
             VRenderSystem.topology = toVkTopology(renderPipeline.getVertexFormatMode());
         }
     }
 
-    private static int toVkDepthOp(DepthTestFunction fn) {
+    private static int toVkDepthOp(CompareOp fn) {
         return switch (fn) {
-            case EQUAL_DEPTH_TEST -> VK_COMPARE_OP_EQUAL;
-            case LEQUAL_DEPTH_TEST -> VK_COMPARE_OP_LESS_OR_EQUAL;
-            case LESS_DEPTH_TEST -> VK_COMPARE_OP_LESS;
-            case GREATER_DEPTH_TEST -> VK_COMPARE_OP_GREATER;
-            case NO_DEPTH_TEST -> VK_COMPARE_OP_ALWAYS;
+            case EQUAL -> VK_COMPARE_OP_EQUAL;
+            case LESS_THAN_OR_EQUAL -> VK_COMPARE_OP_LESS_OR_EQUAL;
+            case LESS_THAN -> VK_COMPARE_OP_LESS;
+            case GREATER_THAN -> VK_COMPARE_OP_GREATER;
+            case GREATER_THAN_OR_EQUAL -> VK_COMPARE_OP_GREATER_OR_EQUAL;
+            case NOT_EQUAL -> VK_COMPARE_OP_NOT_EQUAL;
+            case NEVER_PASS -> VK_COMPARE_OP_NEVER;
+            case ALWAYS_PASS -> VK_COMPARE_OP_ALWAYS;
         };
     }
 

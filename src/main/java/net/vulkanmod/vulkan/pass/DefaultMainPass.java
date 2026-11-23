@@ -174,7 +174,7 @@ public class DefaultMainPass implements MainPass {
     }
 
     private void createAttachmentTextures() {
-        VkGpuDevice device = (VkGpuDevice) RenderSystem.getDevice();
+        VkGpuDevice device = (VkGpuDevice) RenderSystem.getDevice().backend;
 
         SwapChain swapChain = Renderer.getInstance().getSwapChain();
         if (this.mainFramebuffer == swapChain) {

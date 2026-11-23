@@ -317,113 +317,33 @@ public class GraphicsPipeline extends Pipeline {
             posDescription.location(i);
 
             VertexFormatElement formatElement = elements.get(i);
-            VertexFormatElement.Usage usage = formatElement.usage();
             VertexFormatElement.Type type = formatElement.type();
             int elementCount = formatElement.count();
+            boolean normalized = formatElement.normalized();
 
-            switch (usage) {
-                case POSITION -> {
-                    switch (type) {
-                        case FLOAT -> {
-                            posDescription.format(VK_FORMAT_R32G32B32_SFLOAT);
-                            posDescription.offset(offset);
-
-                            offset += 12;
-                        }
-                        case SHORT -> {
-                            posDescription.format(VK_FORMAT_R16G16B16A16_SINT);
-                            posDescription.offset(offset);
-
-                            offset += 8;
-                        }
-                        case BYTE -> {
-                            posDescription.format(VK_FORMAT_R8G8B8A8_SINT);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
-                    }
-
-                }
-
-                case COLOR -> {
-                    switch (type) {
-                        case UBYTE -> {
-                            posDescription.format(VK_FORMAT_R8G8B8A8_UNORM);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
-                        case UINT -> {
-                            posDescription.format(VK_FORMAT_R32_UINT);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
+            switch (type) {
+                case FLOAT -> {
+                    switch (elementCount) {
+                        case 3 -> posDescription.format(VK_FORMAT_R32G32B32_SFLOAT);
+                        case 2 -> posDescription.format(VK_FORMAT_R32G32_SFLOAT);
+                        case 1 -> posDescription.format(VK_FORMAT_R32_SFLOAT);
+                        default -> throw new RuntimeException(String.format("Unknown FLOAT count: %d", elementCount));
                     }
                 }
-
-                case UV -> {
-                    switch (type) {
-                        case FLOAT -> {
-                            posDescription.format(VK_FORMAT_R32G32_SFLOAT);
-                            posDescription.offset(offset);
-
-                            offset += 8;
-                        }
-                        case SHORT -> {
-                            posDescription.format(VK_FORMAT_R16G16_SINT);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
-                        case USHORT -> {
-                            posDescription.format(VK_FORMAT_R16G16_UINT);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
-                        case UINT -> {
-                            posDescription.format(VK_FORMAT_R32_UINT);
-                            posDescription.offset(offset);
-
-                            offset += 4;
-                        }
+                case SHORT -> {
+                    switch (elementCount) {
+                        case 4, 3 -> posDescription.format(VK_FORMAT_R16G16B16A16_SINT);
+                        case 2 -> posDescription.format(VK_FORMAT_R16G16_SINT);
+                        case 1 -> posDescription.format(VK_FORMAT_R16_SINT);
+                        default -> throw new RuntimeException(String.format("Unknown SHORT count: %d", elementCount));
                     }
                 }
-
-                case NORMAL -> {
-                    posDescription.format(VK_FORMAT_R8G8B8A8_SNORM);
-                    posDescription.offset(offset);
-
-                    offset += 4;
-                }
-
-                case GENERIC -> {
-                    if (type == VertexFormatElement.Type.SHORT && elementCount == 1) {
-                        posDescription.format(VK_FORMAT_R16_SINT);
-                        posDescription.offset(offset);
-
-                        offset += 2;
-                    }
-                    else if (type == VertexFormatElement.Type.INT && elementCount == 1) {
-                        posDescription.format(VK_FORMAT_R32_SINT);
-                        posDescription.offset(offset);
-
-                        offset += 4;
-                    }
-                    else if (type == VertexFormatElement.Type.FLOAT && elementCount == 1) {
-                        posDescription.format(VK_FORMAT_R32_SFLOAT);
-                        posDescription.offset(offset);
-
-                        offset += 4;
-                    }
-                    else {
-                        throw new RuntimeException(String.format("Unknown type: %s", type));
-                    }
-                }
-
-                default -> throw new RuntimeException(String.format("Unknown format: %s", usage));
+                case USHORT -> posDescription.format(VK_FORMAT_R16G16_UINT);
+                case BYTE -> posDescription.format(normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT);
+                case UBYTE -> posDescription.format(VK_FORMAT_R8G8B8A8_UNORM);
+                case UINT -> posDescription.format(VK_FORMAT_R32_UINT);
+                case INT -> posDescription.format(VK_FORMAT_R32_SINT);
+                default -> throw new RuntimeException(String.format("Unknown type: %s", type));
             }
 
             posDescription.offset(((VertexFormatMixed) (vertexFormat)).getOffset(i));

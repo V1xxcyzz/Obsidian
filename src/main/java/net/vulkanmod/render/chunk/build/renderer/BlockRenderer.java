@@ -1,16 +1,16 @@
 package net.vulkanmod.render.chunk.build.renderer;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.fabricmc.fabric.api.renderer.v1.mesh.ShadeMode;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.ShadeMode;
 import net.fabricmc.fabric.api.util.TriState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.SingleThreadedRandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -36,7 +36,7 @@ public class BlockRenderer extends AbstractBlockRenderContext {
 
     private BuilderResources resources;
     private TerrainBuilder terrainBuilder;
-    private BlockRenderDispatcher blockRenderDispatcher;
+    private BlockStateModelSet blockStateModelSet;
     private final Predicate<Direction> faceCullPredicate = this::isFaceCulled;
 
     final boolean backFaceCulling = Initializer.CONFIG.backFaceCulling;
@@ -62,16 +62,17 @@ public class BlockRenderer extends AbstractBlockRenderContext {
         this.blockState = blockState;
         this.random.setSeed(blockState.getSeed(blockPos));
 
-        TerrainRenderType renderType = TerrainRenderType.get(ItemBlockRenderTypes.getChunkRenderType(blockState));
+        if (this.blockStateModelSet == null) {
+            this.blockStateModelSet = Minecraft.getInstance().getModelManager().getBlockStateModelSet();
+        }
+        BlockStateModel model = this.blockStateModelSet.get(blockState);
+
+        TerrainRenderType renderType = model.hasMaterialFlag(BakedQuad.FLAG_TRANSLUCENT)
+                ? TerrainRenderType.TRANSLUCENT : TerrainRenderType.CUTOUT;
         renderType = TerrainRenderType.getRemapped(renderType);
         this.renderType = renderType;
         this.terrainBuilder = this.resources.builderPack.builder(renderType);
         this.terrainBuilder.setBlockAttributes(blockState);
-
-        if (this.blockRenderDispatcher == null) {
-            this.blockRenderDispatcher = Minecraft.getInstance().getBlockRenderer();
-        }
-        BlockStateModel model = this.blockRenderDispatcher.getBlockModel(blockState);
 
         if (blockState.hasOffsetFunction()) {
             Vec3 offset = blockState.getOffset(blockPos);
@@ -94,7 +95,7 @@ public class BlockRenderer extends AbstractBlockRenderContext {
         final boolean emissive = quad.emissive();
         final boolean vanillaShade = quad.shadeMode() == ShadeMode.VANILLA;
 
-        TerrainBuilder terrainBuilder = getBufferBuilder(quad.renderLayer());
+        TerrainBuilder terrainBuilder = getBufferBuilder(quad.chunkLayer());
 
         LightPipeline lightPipeline = ao ? this.smoothLightPipeline : this.flatLightPipeline;
 

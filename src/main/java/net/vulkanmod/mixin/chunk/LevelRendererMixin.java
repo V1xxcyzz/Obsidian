@@ -16,7 +16,7 @@ import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
-import net.minecraft.client.renderer.state.LevelRenderState;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.BlockDestructionProgress;
 import net.minecraft.world.level.ChunkPos;
@@ -180,7 +180,7 @@ public abstract class LevelRendererMixin {
 
     @Redirect(method = "addWeatherPass", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;getDepthFar()F"))
     private float getRenderDistanceZFar(GameRenderer instance) {
-        return instance.getRenderDistance() * 4F;
+        return net.minecraft.client.Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0F * 4.0F;
     }
 
 }

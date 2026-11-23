@@ -3,8 +3,8 @@ package net.vulkanmod.mixin.render.vertex;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.geom.builders.UVPair;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.util.LightCoordsUtil;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.vulkanmod.mixin.matrix.PoseAccessor;
 import net.vulkanmod.render.util.MathUtil;
 import net.vulkanmod.render.vertex.format.I32_SNorm;
@@ -29,14 +29,14 @@ public interface VertexConsumerM {
         boolean trustedNormals = ((PoseAccessor)(Object)pose).trustedNormals();
         int packedNormal = MathUtil.packTransformedNorm(pose.normal(), trustedNormals, vector3fc.x(), vector3fc.y(), vector3fc.z());
 
-        int lightEmission = bakedQuad.lightEmission();
+        int lightEmission = bakedQuad.materialInfo().lightEmission();
 
         for (int l = 0; l < 4; l++) {
             Vector3fc quadPos = bakedQuad.position(l);
             long packedUV = bakedQuad.packedUV(l);
             float br = brightness[l];
             int color = ColorUtil.RGBA.pack(r * br, g * br, b * br, a);
-            int light = LightTexture.lightCoordsWithEmission(lights[l], lightEmission);
+            int light = LightCoordsUtil.lightCoordsWithEmission(lights[l], lightEmission);
 
             float x = quadPos.x();
             float y = quadPos.y();

@@ -2,7 +2,7 @@ package net.vulkanmod.render.profiling;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.render.chunk.WorldRenderer;
 import net.vulkanmod.vulkan.memory.MemoryManager;
@@ -16,7 +16,7 @@ public final class HudOverlay {
     private HudOverlay() {
     }
 
-    public static void render(GuiGraphics guiGraphics, int mode) {
+    public static void render(GuiGraphicsExtractor guiGraphics, int mode) {
         if (mode <= 0 || MINECRAFT.font == null) {
             return;
         }
@@ -44,7 +44,7 @@ public final class HudOverlay {
 
         guiGraphics.fill(x, y, x + w, y + h, 0x900A0A10);
         guiGraphics.fill(x, y, x + 2, y + h, 0xFF9B5DE5);
-        guiGraphics.drawString(font, text, x + padX + 1, y + padY, 0xFFEAEAF0, true);
+        guiGraphics.text(font, text, x + padX + 1, y + padY, 0xFFEAEAF0, true);
     }
 
     public static boolean shouldRender() {

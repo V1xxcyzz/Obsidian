@@ -4,6 +4,7 @@ import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderPassBackend;
 import com.mojang.blaze3d.systems.ScissorState;
 import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTextureView;
@@ -21,7 +22,7 @@ import net.vulkanmod.interfaces.shader.ExtendedRenderPipeline;
 import org.jetbrains.annotations.Nullable;
 
 @Environment(EnvType.CLIENT)
-public class VkRenderPass implements RenderPass {
+public class VkRenderPass implements RenderPassBackend {
     protected static final int MAX_VERTEX_BUFFERS = 1;
     public static final boolean VALIDATION = SharedConstants.IS_RUNNING_IN_IDE;
     private final VkCommandEncoder encoder;
@@ -213,6 +214,11 @@ public class VkRenderPass implements RenderPass {
             this.closed = true;
             this.encoder.finishRenderPass(!this.autoManaged);
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return this.closed;
     }
 
     public @Nullable RenderPipeline getPipeline() {

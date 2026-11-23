@@ -31,7 +31,7 @@ public abstract class RenderSystemMixin {
 
         VRenderSystem.initRenderer();
 
-        DEVICE = new VkGpuDevice(l, i, bl, shaderSource, bl2);
+        DEVICE = new GpuDevice(new VkGpuDevice(l, i, bl, shaderSource, bl2));
         apiDescription = getDevice().getImplementationInformation();
 
         Renderer.initRenderer();

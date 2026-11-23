@@ -28,7 +28,7 @@ public final class VkInterop {
             renderer.invalidateBoundState();
         }
 
-        if (RenderSystem.getDevice() instanceof VkGpuDevice gpuDevice) {
+        if (RenderSystem.getDevice().backend instanceof VkGpuDevice gpuDevice) {
             gpuDevice.getEncoder().invalidateCachedState();
         }
     }
@@ -86,7 +86,7 @@ public final class VkInterop {
      */
     @Nullable
     public static VkGpuTexture wrapVulkanImage(VulkanImage image) {
-        if (RenderSystem.getDevice() instanceof VkGpuDevice gpuDevice) {
+        if (RenderSystem.getDevice().backend instanceof VkGpuDevice gpuDevice) {
             return gpuDevice.gpuTextureFromVulkanImage(image);
         }
         return null;

@@ -1,4 +1,4 @@
-accessWidener	v1	named
+accessWidener	v1	official
 
 accessible class net/minecraft/client/model/geom/ModelPart$Polygon
 accessible class net/minecraft/client/model/geom/ModelPart$Vertex
@@ -16,3 +16,7 @@ accessible method net/minecraft/client/renderer/texture/TextureAtlasSprite isAni
 accessible class net/minecraft/client/renderer/ShaderManager$ShaderSourceKey
 accessible method net/minecraft/client/renderer/ShaderManager$ShaderSourceKey <init> (Lnet/minecraft/resources/Identifier;Lcom/mojang/blaze3d/shaders/ShaderType;)V
 accessible class net/minecraft/client/renderer/ShaderManager$CompilationCache
+
+accessible field com/mojang/blaze3d/systems/RenderPass backend Lcom/mojang/blaze3d/systems/RenderPassBackend;
+accessible field com/mojang/blaze3d/systems/CommandEncoder backend Lcom/mojang/blaze3d/systems/CommandEncoderBackend;
+accessible field com/mojang/blaze3d/systems/GpuDevice backend Lcom/mojang/blaze3d/systems/GpuDeviceBackend;

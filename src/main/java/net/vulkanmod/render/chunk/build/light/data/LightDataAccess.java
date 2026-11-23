@@ -1,9 +1,9 @@
 package net.vulkanmod.render.chunk.build.light.data;
 
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -88,7 +88,7 @@ public abstract class LightDataAccess {
         if (this.subBlockLighting)
             op = state.canOcclude();
         else
-            op = state.isViewBlocking(region, pos) && state.getLightBlock() != 0;
+            op = state.canOcclude() && state.getLightDampening() != 0;
 
         boolean fo = state.isSolidRender();
         boolean fc = state.isCollisionShapeFullBlock(region, pos);
@@ -108,9 +108,8 @@ public abstract class LightDataAccess {
                 sl = region.getBrightness(LightLayer.SKY, pos);
             }
             else {
-                int light = LevelRenderer.getLightColor(LevelRenderer.BrightnessGetter.DEFAULT, region, state, pos);
-                bl = LightTexture.block(light);
-                sl = LightTexture.sky(light);
+                bl = Math.max(region.getBrightness(LightLayer.BLOCK, pos), lu);
+                sl = region.getBrightness(LightLayer.SKY, pos);
             }
         }
 
@@ -210,13 +209,13 @@ public abstract class LightDataAccess {
      * emissive check.
      */
     public static int getLightmap(int word) {
-//        return LightTexture.pack(Math.max(unpackBL(word), unpackLU(word)), unpackSL(word));
-        return LightTexture.pack(unpackBL(word), unpackSL(word));
+//        return LightCoordsUtil.pack(Math.max(unpackBL(word), unpackLU(word)), unpackSL(word));
+        return LightCoordsUtil.pack(unpackBL(word), unpackSL(word));
     }
 
     public static int getEmissiveLightmap(int word) {
         if (unpackEM(word)) {
-            return LightTexture.FULL_BRIGHT;
+            return LightCoordsUtil.FULL_BRIGHT;
         } else {
             return getLightmap(word);
         }

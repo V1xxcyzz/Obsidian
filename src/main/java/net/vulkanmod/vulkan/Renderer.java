@@ -675,7 +675,7 @@ public class Renderer {
         this.mainPass.onResize();
 
         this.onResizeCallbacks.forEach(Runnable::run);
-        ((WindowAccessor) (Object) Minecraft.getInstance().getWindow()).getEventHandler().resizeDisplay();
+        ((WindowAccessor) (Object) Minecraft.getInstance().getWindow()).getEventHandler().resizeGui();
 
         currentFrame = 0;
     }

@@ -17,13 +17,13 @@
 package net.vulkanmod.render.chunk.build.frapi.mesh;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import net.fabricmc.fabric.api.renderer.v1.mesh.*;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.*;
 import net.fabricmc.fabric.api.util.TriState;
 import net.minecraft.client.model.geom.builders.UVPair;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
-import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.Direction;
 import net.vulkanmod.render.chunk.build.frapi.helper.NormalHelper;
 import org.jspecify.annotations.Nullable;
@@ -60,10 +60,10 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 		// Apply non-zero defaults
 		quad.color(-1, -1, -1, -1);
 		quad.cullFace(null);
-		quad.renderLayer(null);
+		quad.chunkLayer(null);
 		quad.diffuseShade(true);
 		quad.ambientOcclusion(TriState.DEFAULT);
-		quad.glint(null);
+		quad.foilType(null);
 		quad.tintIndex(-1);
 	}
 
@@ -81,10 +81,12 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 		return true;
 	};
 
-	public final void clear() {
+	@Override
+	public final QuadEmitter clear() {
 		System.arraycopy(DEFAULT_QUAD_DATA, 0, data, baseIndex, EncodingFormat.TOTAL_STRIDE);
 		isGeometryInvalid = true;
 		nominalFace = null;
+		return this;
 	}
 
 	@Override
@@ -161,7 +163,7 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 	}
 
 	@Override
-	public MutableQuadViewImpl renderLayer(@org.jspecify.annotations.Nullable ChunkSectionLayer renderLayer) {
+	public MutableQuadViewImpl chunkLayer(@org.jspecify.annotations.Nullable ChunkSectionLayer renderLayer) {
 		data[baseIndex + HEADER_BITS] = EncodingFormat.renderLayer(data[baseIndex + HEADER_BITS], renderLayer);
 		return this;
 	}
@@ -186,7 +188,7 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 	}
 
 	@Override
-	public MutableQuadViewImpl glint(ItemStackRenderState.@Nullable FoilType glint) {
+	public MutableQuadViewImpl foilType(ItemStackRenderState.@Nullable FoilType glint) {
 		data[baseIndex + HEADER_BITS] = EncodingFormat.glint(data[baseIndex + HEADER_BITS], glint);
 		return this;
 	}
@@ -195,6 +197,22 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 	public MutableQuadViewImpl shadeMode(ShadeMode mode) {
 		Objects.requireNonNull(mode, "ShadeMode may not be null");
 		data[baseIndex + HEADER_BITS] = EncodingFormat.shadeMode(data[baseIndex + HEADER_BITS], mode);
+		return this;
+	}
+
+	public void setData(int[] data) {
+		this.data = data;
+	}
+
+	@Override
+	public MutableQuadViewImpl animated(boolean animated) {
+		this.animated = animated;
+		return this;
+	}
+
+	@Override
+	public MutableQuadViewImpl itemRenderType(net.minecraft.client.renderer.rendertype.@org.jspecify.annotations.Nullable RenderType renderType) {
+		this.itemRenderType = renderType;
 		return this;
 	}
 
@@ -248,23 +266,25 @@ public abstract class MutableQuadViewImpl extends QuadViewImpl implements QuadEm
 		uv(2, UVPair.unpackU(packedUV2), UVPair.unpackV(packedUV2));
 		uv(3, UVPair.unpackU(packedUV3), UVPair.unpackV(packedUV3));
 
-		int lightEmission = quad.lightEmission();
-		int lightmap = LightTexture.pack(lightEmission, lightEmission);
+		BakedQuad.MaterialInfo material = quad.materialInfo();
+		int lightEmission = material.lightEmission();
+		int lightmap = LightCoordsUtil.pack(lightEmission, lightEmission);
 		lightmap(lightmap, lightmap, lightmap, lightmap);
 
 		normalFlags(0);
 
 		nominalFace(quad.direction());
 		emissive(lightEmission == 15);
-		diffuseShade(quad.shade());
-		QuadAtlas atlas = QuadAtlas.of(quad.sprite().atlasLocation());
+		diffuseShade(material.shade());
+		chunkLayer(material.layer());
+		QuadAtlas atlas = QuadAtlas.ofLocation(material.sprite().atlasLocation());
 
 		if (atlas == null) {
 			atlas = QuadAtlas.BLOCK;
 		}
 
 		atlas(atlas);
-		tintIndex(quad.tintIndex());
+		tintIndex(material.tintIndex());
 		return this;
 	}
 

@@ -8,9 +8,9 @@ import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.gui.render.TextureSetup;
-import net.minecraft.client.gui.render.state.BlitRenderState;
-import net.minecraft.client.gui.render.state.GuiItemRenderState;
-import net.minecraft.client.gui.render.state.GuiRenderState;
+import net.minecraft.client.renderer.state.gui.BlitRenderState;
+import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.vulkanmod.render.engine.VkRenderPass;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +41,7 @@ public abstract class GuiRendererMixin {
         float u1 = u + (float)size / atlasSize;
         float v1 = v + (float)(size) / atlasSize;
         this.renderState
-                .submitBlitToCurrentLayer(
+                .addBlitToCurrentLayer(
                         new BlitRenderState(
                                 RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
                                 TextureSetup.singleTexture(this.itemsAtlasView, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
@@ -73,7 +73,7 @@ public abstract class GuiRendererMixin {
     private void useVertexCount(RenderPass renderPass, int baseVertex, int firstIndex, int indexCount, int instanceCount) {
         // For the same reason here we need to use vertexCount instead of indexCount
 
-        VkRenderPass vkRenderPass = (VkRenderPass) renderPass;
+        VkRenderPass vkRenderPass = (VkRenderPass) renderPass.backend;
         if (vkRenderPass.getPipeline().getVertexFormatMode() != VertexFormat.Mode.TRIANGLES) {
             int vertexCount = indexCount * 2 / 3;
             renderPass.drawIndexed(baseVertex, 0, vertexCount, 1);

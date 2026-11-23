@@ -16,8 +16,8 @@
 
 package net.vulkanmod.render.chunk.build.frapi.mesh;
 
-import net.fabricmc.fabric.api.renderer.v1.mesh.QuadAtlas;
-import net.fabricmc.fabric.api.renderer.v1.mesh.ShadeMode;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadAtlas;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.ShadeMode;
 import net.fabricmc.fabric.api.util.TriState;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
@@ -27,7 +27,7 @@ import net.vulkanmod.render.model.quad.ModelQuadView;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
-import net.fabricmc.fabric.api.renderer.v1.mesh.QuadView;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView;
 import net.vulkanmod.render.chunk.build.frapi.helper.GeometryHelper;
 import net.vulkanmod.render.chunk.build.frapi.helper.NormalHelper;
 import net.minecraft.core.Direction;
@@ -236,7 +236,7 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 
 	@Override
 	@Nullable
-	public ChunkSectionLayer renderLayer() {
+	public ChunkSectionLayer chunkLayer() {
 		return EncodingFormat.renderLayer(data[baseIndex + HEADER_BITS]);
 	}
 
@@ -256,7 +256,7 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 	}
 
 	@Override
-	public ItemStackRenderState.@Nullable FoilType glint() {
+	public ItemStackRenderState.@Nullable FoilType foilType() {
 		return EncodingFormat.glint(data[baseIndex + HEADER_BITS]);
 	}
 
@@ -265,9 +265,47 @@ public class QuadViewImpl implements QuadView, ModelQuadView {
 		return EncodingFormat.shadeMode(data[baseIndex + HEADER_BITS]);
 	}
 
+	protected boolean animated;
+	protected net.minecraft.client.renderer.rendertype.@Nullable RenderType itemRenderType;
+
+	@Override
+	public boolean animated() {
+		return this.animated;
+	}
+
+	@Override
+	public net.minecraft.client.renderer.rendertype.@Nullable RenderType itemRenderType() {
+		return this.itemRenderType;
+	}
+
 	@Override
 	public QuadAtlas atlas() {
 		return EncodingFormat.quadAtlas(data[baseIndex + HEADER_BITS]);
+	}
+
+	@Override
+	public void buffer(int overlay, com.mojang.blaze3d.vertex.VertexConsumer vertexConsumer) {
+		Vector3fc fn = faceNormal();
+		for (int i = 0; i < 4; i++) {
+			vertexConsumer.addVertex(x(i), y(i), z(i))
+					.setColor(color(i))
+					.setUv(u(i), v(i))
+					.setOverlay(overlay)
+					.setLight(lightmap(i))
+					.setNormal(hasNormal(i) ? normalX(i) : fn.x(), hasNormal(i) ? normalY(i) : fn.y(), hasNormal(i) ? normalZ(i) : fn.z());
+		}
+	}
+
+	@Override
+	public void buffer(int overlay, com.mojang.blaze3d.vertex.PoseStack.Pose pose, com.mojang.blaze3d.vertex.VertexConsumer vertexConsumer) {
+		Vector3fc fn = faceNormal();
+		Vector3f tmpPos = new Vector3f();
+		Vector3f tmpNorm = new Vector3f();
+		for (int i = 0; i < 4; i++) {
+			pose.pose().transformPosition(x(i), y(i), z(i), tmpPos);
+			pose.transformNormal(hasNormal(i) ? normalX(i) : fn.x(), hasNormal(i) ? normalY(i) : fn.y(), hasNormal(i) ? normalZ(i) : fn.z(), tmpNorm);
+			vertexConsumer.addVertex(tmpPos.x, tmpPos.y, tmpPos.z, color(i), u(i), v(i), overlay, lightmap(i), tmpNorm.x, tmpNorm.y, tmpNorm.z);
+		}
 	}
 
 	@Override

@@ -2,19 +2,18 @@ package net.vulkanmod.render.chunk.build.frapi.render;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import it.unimi.dsi.fastutil.objects.Object2ByteLinkedOpenHashMap;
-import net.fabricmc.fabric.api.renderer.v1.Renderer;
-import net.fabricmc.fabric.api.renderer.v1.mesh.QuadAtlas;
-import net.fabricmc.fabric.api.renderer.v1.mesh.QuadEmitter;
-import net.fabricmc.fabric.api.renderer.v1.model.ModelHelper;
+import net.fabricmc.fabric.api.client.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadAtlas;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.client.renderer.v1.model.ModelHelper;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.color.block.BlockColor;
+import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.color.block.BlockColors;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
-import net.minecraft.client.renderer.block.model.BlockModelPart;
-import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.Shapes;
@@ -28,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import net.vulkanmod.render.chunk.build.frapi.helper.ColorHelper;
 import net.vulkanmod.render.chunk.build.frapi.mesh.EncodingFormat;
 import net.vulkanmod.render.chunk.build.frapi.mesh.MutableQuadViewImpl;
-import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
@@ -101,9 +100,9 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 	public void prepareForBlock(BlockState blockState, BlockPos blockPos, boolean modelAo) {
 		this.blockPos = blockPos;
 		this.blockState = blockState;
-		this.defaultLayer = ItemBlockRenderTypes.getChunkRenderType(blockState);
+		this.defaultLayer = ChunkSectionLayer.SOLID;
 
-		this.useAO = Minecraft.useAmbientOcclusion();
+		this.useAO = Minecraft.getInstance().options.ambientOcclusion().get();
 		this.defaultAO = this.useAO && modelAo && blockState.getLightEmission() == 0;
 
 		this.cullCompletionFlags = 0;
@@ -217,9 +216,9 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 	}
 
 	private int getBlockColor(BlockAndTintGetter region, int colorIndex) {
-		BlockColor blockColor = this.blockColorRegistry.getBlockColor(this.blockState.getBlock());
+		BlockTintSource blockColor = this.blockColorRegistry.getBlockColor(this.blockState.getBlock());
 
-		int color = blockColor != null ? blockColor.getColor(blockState, region, blockPos, colorIndex) : -1;
+		int color = blockColor != null ? blockColor.colorInWorld(blockState, region, blockPos) : -1;
 		return 0xFF000000 | color;
 	}
 
@@ -232,8 +231,8 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 		if (emissive) {
 			for (int i = 0; i < 4; i++) {
 				quad.color(i, ColorHelper.multiplyRGB(quad.color(i), data.br[i]));
-//				quad.lightmap(i, LightTexture.FULL_BRIGHT);
-				data.lm[i] = LightTexture.FULL_BRIGHT;
+//				quad.lightmap(i, LightCoordsUtil.FULL_BRIGHT);
+				data.lm[i] = LightCoordsUtil.FULL_BRIGHT;
 			}
 		} else {
 			for (int i = 0; i < 4; i++) {
@@ -260,7 +259,8 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 				continue;
 			}
 
-			final List<BlockModelPart> parts = ((BlockStateModel) this).collectParts(random);
+			final List<BlockStateModelPart> parts = new it.unimi.dsi.fastutil.objects.ObjectArrayList<>();
+			model.collectParts(random, parts);
 			final int partCount = parts.size();
 
 			for (int j = 0; j < partCount; j++) {

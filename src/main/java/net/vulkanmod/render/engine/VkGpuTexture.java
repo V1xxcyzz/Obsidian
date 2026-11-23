@@ -69,7 +69,7 @@ public class VkGpuTexture extends GlTexture {
         int depthAttachmentId = depthAttachment == null ? 0 : ((VkGpuTexture)depthAttachment).id;
 
         if (this.fboView == null) {
-            VkGpuDevice gpuDevice = (VkGpuDevice) RenderSystem.getDevice();
+            VkGpuDevice gpuDevice = (VkGpuDevice) RenderSystem.getDevice().backend;
             this.fboView = (VkTextureView) gpuDevice.createTextureView(this, 0, this.getMipLevels());
         }
 

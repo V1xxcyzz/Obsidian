@@ -7,8 +7,8 @@ import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.ShaderSource;
 import com.mojang.blaze3d.shaders.ShaderType;
-import com.mojang.blaze3d.systems.CommandEncoder;
-import com.mojang.blaze3d.systems.GpuDevice;
+import com.mojang.blaze3d.systems.CommandEncoderBackend;
+import com.mojang.blaze3d.systems.GpuDeviceBackend;
 import com.mojang.blaze3d.textures.*;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.EnvType;
@@ -39,7 +39,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 @SuppressWarnings("NullableProblems")
-public class VkGpuDevice implements GpuDevice {
+public class VkGpuDevice implements GpuDeviceBackend {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static final ShaderDefines GLOBAL_DEFINES = ShaderDefines.builder()
@@ -74,8 +74,22 @@ public class VkGpuDevice implements GpuDevice {
     }
 
     @Override
-    public CommandEncoder createCommandEncoder() {
+    public CommandEncoderBackend createCommandEncoder() {
         return this.encoder;
+    }
+
+    @Override
+    public boolean isZZeroToOne() {
+        return true;
+    }
+
+    @Override
+    public void setVsync(boolean vsync) {
+        net.vulkanmod.vulkan.Renderer.scheduleSwapChainUpdate();
+    }
+
+    @Override
+    public void presentFrame() {
     }
 
     public VkCommandEncoder getEncoder() {

@@ -107,7 +107,7 @@ public class RenderRegionBuilder {
     }
 
     private LevelChunk getLevelChunk(Level level, int x, int z) {
-        long l = ChunkPos.asLong(x, z);
+        long l = ChunkPos.pack(x, z);
         LevelChunk chunk = this.levelChunkCache.getAndMoveToFirst(l);
 
         if (chunk == null) {
@@ -124,7 +124,7 @@ public class RenderRegionBuilder {
     }
 
     public void remove(int x, int z) {
-        levelChunkCache.remove(ChunkPos.asLong(x, z));
+        levelChunkCache.remove(ChunkPos.pack(x, z));
     }
 
     public void clear() {

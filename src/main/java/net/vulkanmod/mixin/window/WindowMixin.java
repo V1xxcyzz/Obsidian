@@ -99,7 +99,7 @@ public abstract class WindowMixin {
      */
     @Overwrite
     public void updateDisplay(@Nullable TracyFrameCapture tracyFrameCapture) {
-        RenderSystem.flipFrame((Window) ((Object)this), tracyFrameCapture);
+        RenderSystem.flipFrame(tracyFrameCapture);
 
         if (Options.fullscreenDirty) {
             Options.fullscreenDirty = false;

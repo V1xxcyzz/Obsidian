@@ -17,7 +17,7 @@ import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
-import net.minecraft.client.renderer.state.LevelRenderState;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureManager;
@@ -347,7 +347,7 @@ public class WorldRenderer {
         GlStateManager._enableDepthTest();
         GlStateManager._depthMask(true);
 
-        GlStateManager._colorMask(true, true, true, true);
+        GlStateManager._colorMask(com.mojang.blaze3d.pipeline.ColorTargetState.WRITE_ALL);
         GlStateManager._disablePolygonOffset();
         VRenderSystem.setPolygonModeGL(GL11.GL_FILL);
 
@@ -386,7 +386,7 @@ public class WorldRenderer {
         texture.getVulkanImage().setSampler(this.terrainSampler);
 
         VRenderSystem.setShaderTexture(0, texView);
-        VRenderSystem.setShaderTexture(2, Minecraft.getInstance().gameRenderer.lightTexture().getTextureView());
+        VRenderSystem.setShaderTexture(2, Minecraft.getInstance().gameRenderer.lightmap());
 
         VTextureSelector.bindShaderTextures(pipeline);
 
