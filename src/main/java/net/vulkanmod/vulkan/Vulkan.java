@@ -48,7 +48,7 @@ public class Vulkan {
         public static final boolean ENABLE_VALIDATION_LAYERS = false;
 //    public static final boolean ENABLE_VALIDATION_LAYERS = true;
 
-    public static final boolean DYNAMIC_RENDERING = true;
+    public static boolean DYNAMIC_RENDERING = true;
 
     public static final Set<String> VALIDATION_LAYERS;
 
@@ -65,7 +65,7 @@ public class Vulkan {
     }
 
     public static final Set<String> REQUIRED_DEVICE_EXTENSIONS = Set.of(
-            "VK_KHR_dynamic_rendering", "VK_KHR_synchronization2", "VK_KHR_swapchain"
+            "VK_KHR_swapchain"
     );
 
     public static long window;
@@ -86,11 +86,22 @@ public class Vulkan {
     public static boolean surfaceCapabilities2Supported = false;
     private static int DEFAULT_DEPTH_FORMAT = 0;
 
+    public static void initDevice() {
+        Instance.createInstance();
+        Debug.setupDebugMessenger();
+
+        initLogicalDeviceAndResources();
+    }
+
     public static void initVulkan(long window) {
         Instance.createInstance();
         Debug.setupDebugMessenger();
         createSurface(window);
 
+        initLogicalDeviceAndResources();
+    }
+
+    private static void initLogicalDeviceAndResources() {
         DeviceManager.init(Instance.instance);
         setupDepthFormat();
 
@@ -148,7 +159,10 @@ public class Vulkan {
         SamplerManager.cleanUp();
         DeviceManager.destroy();
         Debug.destroyDebugUtilsMessengerEXT(Instance.instance, debugMessenger, null);
-        KHRSurface.vkDestroySurfaceKHR(Instance.instance, surface, null);
+        if (surface != 0L) {
+            KHRSurface.vkDestroySurfaceKHR(Instance.instance, surface, null);
+            surface = 0L;
+        }
         vkDestroyInstance(Instance.instance, null);
     }
 
@@ -226,6 +240,10 @@ public class Vulkan {
 
     public static long getSurface() {
         return surface;
+    }
+
+    public static VkInstance getVkInstance() {
+        return Instance.instance;
     }
 
     public static long getCommandPool() {

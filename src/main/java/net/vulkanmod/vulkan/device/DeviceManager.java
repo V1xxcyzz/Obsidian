@@ -118,6 +118,14 @@ public abstract class DeviceManager {
             memoryProperties = VkPhysicalDeviceMemoryProperties.malloc();
             vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
 
+            if (Vulkan.getSurface() != 0L) {
+                surfaceProperties = querySurfaceProperties(physicalDevice, stack);
+            }
+        }
+    }
+
+    public static void initSurfaceProperties() {
+        try (MemoryStack stack = stackPush()) {
             surfaceProperties = querySurfaceProperties(physicalDevice, stack);
         }
     }
@@ -177,7 +185,7 @@ public abstract class DeviceManager {
 
             VkPhysicalDeviceVulkan12Features deviceVulkan12Features = VkPhysicalDeviceVulkan12Features.calloc(stack);
             deviceVulkan12Features.sType$Default();
-            deviceVulkan12Features.hostQueryReset(true);
+            deviceVulkan12Features.hostQueryReset(device.availableFeatures12.hostQueryReset());
 
             VkPhysicalDeviceFeatures2 deviceFeatures = VkPhysicalDeviceFeatures2.calloc(stack);
             deviceFeatures.sType$Default();
@@ -199,12 +207,15 @@ public abstract class DeviceManager {
             VkDeviceCreateInfo createInfo = VkDeviceCreateInfo.calloc(stack);
             createInfo.sType$Default();
             createInfo.sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
+            boolean dynamicRendering = device.hasExtension("VK_KHR_dynamic_rendering");
+            Vulkan.DYNAMIC_RENDERING = dynamicRendering;
+
             createInfo.pQueueCreateInfos(queueCreateInfos);
             createInfo.pEnabledFeatures(deviceFeatures.features());
-            createInfo.pNext(deviceVulkan11Features);
+            deviceVulkan12Features.pNext(deviceVulkan11Features.address());
             createInfo.pNext(deviceVulkan12Features);
 
-            if (Vulkan.DYNAMIC_RENDERING) {
+            if (dynamicRendering) {
                 VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR = VkPhysicalDeviceDynamicRenderingFeaturesKHR.calloc(stack);
                 dynamicRenderingFeaturesKHR.sType$Default();
                 dynamicRenderingFeaturesKHR.dynamicRendering(true);
@@ -213,6 +224,13 @@ public abstract class DeviceManager {
             }
 
             HashSet<String> enabledExtensions = new HashSet<>(Vulkan.REQUIRED_DEVICE_EXTENSIONS);
+
+            if (dynamicRendering) {
+                enabledExtensions.add("VK_KHR_dynamic_rendering");
+            }
+            if (device.hasExtension("VK_KHR_synchronization2")) {
+                enabledExtensions.add("VK_KHR_synchronization2");
+            }
 
             if (device.hasExtension("VK_KHR_portability_subset")) {
                 enabledExtensions.add("VK_KHR_portability_subset");
@@ -289,9 +307,9 @@ public abstract class DeviceManager {
                                                              .collect(toSet())
                                                              .containsAll(Vulkan.REQUIRED_DEVICE_EXTENSIONS);
 
-            boolean swapChainAdequate = false;
+            boolean swapChainAdequate = Vulkan.getSurface() == 0L;
 
-            if (extensionsSupported) {
+            if (extensionsSupported && Vulkan.getSurface() != 0L) {
                 SurfaceProperties surfaceProperties = querySurfaceProperties(device.physicalDevice, stack);
                 swapChainAdequate = surfaceProperties.formats.hasRemaining() && surfaceProperties.presentModes.hasRemaining();
             }

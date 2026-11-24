@@ -13,6 +13,7 @@ import org.lwjgl.vulkan.VkQueueFamilyProperties;
 import java.nio.IntBuffer;
 import java.util.stream.IntStream;
 
+import static org.lwjgl.sdl.SDLVulkan.SDL_Vulkan_GetPresentationSupport;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR;
 import static org.lwjgl.vulkan.VK10.*;
@@ -111,9 +112,7 @@ public abstract class Queue {
                 if ((queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
                     indices.graphicsFamily = i;
 
-                    vkGetPhysicalDeviceSurfaceSupportKHR(device, i, Vulkan.getSurface(), presentSupport);
-
-                    if (presentSupport.get(0) == VK_TRUE) {
+                    if (isQueuePresentSupported(device, i, Vulkan.getSurface(), presentSupport)) {
                         indices.presentFamily = i;
                     }
                 } else if ((queueFlags & (VK_QUEUE_GRAPHICS_BIT)) == 0
@@ -125,9 +124,7 @@ public abstract class Queue {
                 }
 
                 if (indices.presentFamily == -1) {
-                    vkGetPhysicalDeviceSurfaceSupportKHR(device, i, Vulkan.getSurface(), presentSupport);
-
-                    if (presentSupport.get(0) == VK_TRUE) {
+                    if (isQueuePresentSupported(device, i, Vulkan.getSurface(), presentSupport)) {
                         indices.presentFamily = i;
                     }
                 }
@@ -193,6 +190,14 @@ public abstract class Queue {
 
             return indices;
         }
+    }
+
+    private static boolean isQueuePresentSupported(VkPhysicalDevice device, int queueFamilyIndex, long surface, IntBuffer presentSupport) {
+        if (surface != 0L) {
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, queueFamilyIndex, surface, presentSupport);
+            return presentSupport.get(0) == VK_TRUE;
+        }
+        return SDL_Vulkan_GetPresentationSupport(Vulkan.getVkInstance(), device, queueFamilyIndex);
     }
 
     public static class QueueFamilyIndices {

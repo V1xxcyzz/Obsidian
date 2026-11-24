@@ -19,6 +19,7 @@ import com.mojang.renderpearl.backend.api.CommandEncoderBackend;
 import com.mojang.renderpearl.backend.api.GpuDeviceBackend;
 import com.mojang.renderpearl.backend.api.GpuSurfaceBackend;
 import net.vulkanmod.gl.VkGlTexture;
+import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.device.Device;
@@ -115,6 +116,12 @@ public class VkGpuDevice implements GpuDeviceBackend {
 
     @Override
     public GpuSurfaceBackend createSurface(long windowHandle, BooleanSupplier shouldClose) {
+        VRenderSystem.setWindow(windowHandle);
+        Vulkan.createSurface(windowHandle);
+        DeviceManager.initSurfaceProperties();
+        if (Renderer.getInstance() == null) {
+            Renderer.initRenderer();
+        }
         return new VkGpuSurface(this, windowHandle, shouldClose);
     }
 

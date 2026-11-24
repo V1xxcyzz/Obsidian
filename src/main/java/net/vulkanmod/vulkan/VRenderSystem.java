@@ -73,6 +73,12 @@ public abstract class VRenderSystem {
 
     private static int currentTime;
 
+    public static void initDevice() {
+        Vulkan.initDevice();
+
+        setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
     public static void initRenderer() {
         Vulkan.initVulkan(window);
 
