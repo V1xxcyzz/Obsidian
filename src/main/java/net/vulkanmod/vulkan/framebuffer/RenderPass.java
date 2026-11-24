@@ -162,7 +162,7 @@ public class RenderPass {
 
         VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
         clearValues.get(0).color().float32(VRenderSystem.clearColor);
-        clearValues.get(1).depthStencil().set(1.0f, 0);
+        clearValues.get(1).depthStencil().set(0.0f, 0);
 
         renderPassInfo.pClearValues(clearValues);
 
@@ -224,7 +224,7 @@ public class RenderPass {
 
         VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
         clearValues.get(0).color().float32(VRenderSystem.clearColor);
-        clearValues.get(1).depthStencil().set(1.0f, 0);
+        clearValues.get(1).depthStencil().set(0.0f, 0);
 
         VkRenderingInfo renderingInfo = VkRenderingInfo.calloc(stack);
         renderingInfo.sType(KHRDynamicRendering.VK_STRUCTURE_TYPE_RENDERING_INFO_KHR);

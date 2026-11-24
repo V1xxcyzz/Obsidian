@@ -342,7 +342,7 @@ public class WorldRenderer {
         }
 
         VRenderSystem.enableCull();
-        VRenderSystem.glDepthFun(GL11.GL_LEQUAL);
+        VRenderSystem.glDepthFun(GL11.GL_GEQUAL);
 
         VRenderSystem.enableDepthTest();
         VRenderSystem.depthMask(true);

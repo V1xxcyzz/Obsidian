@@ -944,24 +944,38 @@ public class Renderer {
 
         Framebuffer framebuffer = INSTANCE.boundFramebuffer;
         int framebufferHeight = framebuffer.getHeight();
-
-        x = Math.max(0, x);
-        width = Math.min(width, framebuffer.getWidth());
         int scissorY = framebufferHeight - (y + height);
+        setScissorTopDown(x, scissorY, width, height);
+    }
 
-        if (INSTANCE.lastScissorX == x && INSTANCE.lastScissorY == scissorY
-                && INSTANCE.lastScissorW == width && INSTANCE.lastScissorH == height) {
+    public static void setScissorTopDown(int x, int y, int width, int height) {
+        if (!INSTANCE.recordingCmds || INSTANCE.boundFramebuffer == null)
+            return;
+
+        Framebuffer framebuffer = INSTANCE.boundFramebuffer;
+        int fbWidth = framebuffer.getWidth();
+        int fbHeight = framebuffer.getHeight();
+
+        int x0 = Math.max(0, Math.min(x, fbWidth));
+        int y0 = Math.max(0, Math.min(y, fbHeight));
+        int x1 = Math.max(x0, Math.min(x + width, fbWidth));
+        int y1 = Math.max(y0, Math.min(y + height, fbHeight));
+        int clampedW = x1 - x0;
+        int clampedH = y1 - y0;
+
+        if (INSTANCE.lastScissorX == x0 && INSTANCE.lastScissorY == y0
+                && INSTANCE.lastScissorW == clampedW && INSTANCE.lastScissorH == clampedH) {
             return;
         }
-        INSTANCE.lastScissorX = x;
-        INSTANCE.lastScissorY = scissorY;
-        INSTANCE.lastScissorW = width;
-        INSTANCE.lastScissorH = height;
+        INSTANCE.lastScissorX = x0;
+        INSTANCE.lastScissorY = y0;
+        INSTANCE.lastScissorW = clampedW;
+        INSTANCE.lastScissorH = clampedH;
 
         try (MemoryStack stack = stackPush()) {
             VkRect2D.Buffer scissor = VkRect2D.malloc(1, stack);
-            scissor.offset().set(x, scissorY);
-            scissor.extent().set(width, height);
+            scissor.offset().set(x0, y0);
+            scissor.extent().set(clampedW, clampedH);
 
             vkCmdSetScissor(INSTANCE.currentCmdBuffer, 0, scissor);
         }

@@ -31,6 +31,7 @@ public class DescriptorSets {
     private int currentIdx = -1;
 
     private final long[] boundUBs;
+    private final long[] boundUBRanges;
     private final ImageDescriptor.State[] boundTextures;
     private final IntBuffer dynamicOffsets;
 
@@ -39,6 +40,7 @@ public class DescriptorSets {
         this.boundTextures = new ImageDescriptor.State[pipeline.imageDescriptors.size()];
         this.dynamicOffsets = MemoryUtil.memAllocInt(pipeline.buffers.size());
         this.boundUBs = new long[pipeline.buffers.size()];
+        this.boundUBRanges = new long[pipeline.buffers.size()];
 
         Arrays.setAll(boundTextures, i -> new ImageDescriptor.State(0, 0));
 
@@ -132,11 +134,14 @@ public class DescriptorSets {
             UBO ubo = pipeline.buffers.get(j);
             Buffer uniformBufferI = ubo.getBufferSlice().getBuffer();
 
-
             if (uniformBufferI == null)
                 uniformBufferI = uniformBuffer;
 
-            if (this.boundUBs[j] != uniformBufferI.getId()) {
+            long range = (!ubo.useGlobalBuffer() && ubo.getBufferSlice().getSize() > 0)
+                    ? ubo.getBufferSlice().getSize()
+                    : ubo.getSize();
+
+            if (this.boundUBs[j] != uniformBufferI.getId() || this.boundUBRanges[j] != range) {
                 return true;
             }
         }
@@ -174,11 +179,15 @@ public class DescriptorSets {
         int i = 0;
         for (UBO ubo : pipeline.getBuffers()) {
             Buffer ub = ubo.getBufferSlice().getBuffer();
+            long range = (!ubo.useGlobalBuffer() && ubo.getBufferSlice().getSize() > 0)
+                    ? ubo.getBufferSlice().getSize()
+                    : ubo.getSize();
             boundUBs[i] = ub.getId();
+            boundUBRanges[i] = range;
 
             bufferInfos[i] = VkDescriptorBufferInfo.calloc(1, stack);
             bufferInfos[i].buffer(boundUBs[i]);
-            bufferInfos[i].range(ubo.getSize());
+            bufferInfos[i].range(range);
 
             VkWriteDescriptorSet descriptorWrite = descriptorWrites.get(i);
             descriptorWrite.sType$Default();

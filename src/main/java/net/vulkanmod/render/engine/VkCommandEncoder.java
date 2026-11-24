@@ -77,6 +77,8 @@ public class VkCommandEncoder implements CommandEncoderBackend {
     private VkBackendRenderPipeline lastPipeline;
     @Nullable
     private VkRenderPass activeRenderPass;
+    @Nullable
+    private VulkanImage activeOffscreenColorImage;
     private boolean inRenderPass;
 
     private final int framebufferId = VkGlFramebuffer.genFramebufferId();
@@ -103,6 +105,10 @@ public class VkCommandEncoder implements CommandEncoderBackend {
         this.lastPipeline = null;
         this.lastCmdBuffer = null;
         this.lastBufferBindEpoch = -1;
+        if (this.activeRenderPass != null) {
+            this.activeRenderPass.uniformsDirty = true;
+            this.activeRenderPass.samplersDirty = true;
+        }
         for (int i = 0; i < VkRenderPass.MAX_VERTEX_BUFFERS; i++) {
             this.boundVertexBufferIds[i] = 0L;
             this.boundVertexOffsets[i] = -1L;
@@ -212,10 +218,11 @@ public class VkCommandEncoder implements CommandEncoderBackend {
 
             RenderPass.RenderArea area = descriptor.renderArea();
             if (area != null) {
-                Renderer.setViewport(area.x(), area.y(), area.width(), area.height());
+                Renderer.setInvertedViewport(area.x(), area.y(), area.width(), area.height());
             } else {
-                Renderer.setViewport(0, 0, colorView.getWidth(0), colorView.getHeight(0));
+                Renderer.setInvertedViewport(0, 0, colorView.getWidth(0), colorView.getHeight(0));
             }
+            this.activeOffscreenColorImage = ((VkTextureView) colorView).texture().getVulkanImage();
         }
 
         this.activeRenderPass = new VkRenderPass(this, depthView != null);
@@ -229,6 +236,14 @@ public class VkCommandEncoder implements CommandEncoderBackend {
             this.activeRenderPass = null;
         }
         Renderer.getInstance().endRenderPass();
+        if (this.activeOffscreenColorImage != null) {
+            if (Renderer.isRecording()) {
+                try (MemoryStack stack = stackPush()) {
+                    this.activeOffscreenColorImage.readOnlyLayout(stack, Renderer.getCommandBuffer());
+                }
+            }
+            this.activeOffscreenColorImage = null;
+        }
         this.inRenderPass = false;
         this.resetBufferCache();
     }
@@ -339,6 +354,12 @@ public class VkCommandEncoder implements CommandEncoderBackend {
     public void clearDepthTexture(GpuTexture depthAttachment, double clearDepth) {
         if (this.inRenderPass) {
             throw new IllegalStateException("Close the existing render pass before creating a new one!");
+        }
+        if (Renderer.getInstance().getMainPass().getDepthAttachment() == depthAttachment) {
+            Renderer.getInstance().getMainPass().rebindMainTarget();
+            VRenderSystem.clearDepth(clearDepth);
+            Renderer.clearAttachments(0x100);
+            return;
         }
         VkGpuTexture vkDepth = (VkGpuTexture) depthAttachment;
         Framebuffer boundFramebuffer = Renderer.getInstance().getBoundFramebuffer();
@@ -749,7 +770,7 @@ public class VkCommandEncoder implements CommandEncoderBackend {
         setupUniforms(renderPass);
 
         if (renderPass.isScissorEnabled()) {
-            Renderer.setScissor(
+            Renderer.setScissorTopDown(
                     renderPass.getScissorX(), renderPass.getScissorY(), renderPass.getScissorWidth(), renderPass.getScissorHeight()
             );
         } else {

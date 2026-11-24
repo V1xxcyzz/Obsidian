@@ -27,6 +27,7 @@ import net.minecraft.client.resources.model.sprite.AtlasManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.vulkanmod.render.chunk.WorldRenderer;
+import net.vulkanmod.render.engine.VkInterop;
 import net.vulkanmod.render.profiling.Profiler;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 import org.joml.Matrix4f;
@@ -153,12 +154,14 @@ public abstract class LevelRendererMixin {
 
             this.worldRenderer.renderSectionLayer(TerrainRenderType.SOLID, camX, camY, camZ, modelView, projection);
             this.worldRenderer.renderSectionLayer(TerrainRenderType.CUTOUT, camX, camY, camZ, modelView, projection);
+            VkInterop.invalidateEncoderState();
         } else if (chunkSectionLayerGroup == ChunkSectionLayerGroup.TRANSLUCENT) {
             Profiler profiler = Profiler.getMainProfiler();
             profiler.pop();
             profiler.push("Translucent_terrain");
 
             this.worldRenderer.renderSectionLayer(TerrainRenderType.TRANSLUCENT, camX, camY, camZ, modelView, projection);
+            VkInterop.invalidateEncoderState();
 
             profiler.pop();
         }
