@@ -131,7 +131,7 @@ public class VOptionScreen extends Screen {
         return new VTextInputWidget(
                 searchX, 6,
                 searchWidth, VGuiConstants.WIDGET_HEIGHT,
-                Component.translatable("vulkanmod.options.searchFieldPlaceholder"),
+                Component.translatable("obsidian.options.searchFieldPlaceholder"),
                 widget -> performSearch(widget.getInput())
         );
     }
@@ -279,15 +279,15 @@ public class VOptionScreen extends Screen {
         VButtonWidget doneButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
                 CommonComponents.GUI_DONE, button -> Minecraft.getInstance().setScreenAndShow(this.parent));
 
-        buttonWidth = Minecraft.getInstance().font.width(Component.translatable("vulkanmod.options.buttons.apply")) + 2 * padding;
+        buttonWidth = Minecraft.getInstance().font.width(Component.translatable("obsidian.options.buttons.apply")) + 2 * padding;
         x0 -= (buttonWidth + VGuiConstants.WIDGET_MARGIN);
         this.applyButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
-                Component.translatable("vulkanmod.options.buttons.apply"), button -> this.applyOptions());
+                Component.translatable("obsidian.options.buttons.apply"), button -> this.applyOptions());
 
-        buttonWidth = Minecraft.getInstance().font.width(Component.translatable("vulkanmod.options.buttons.undo")) + 2 * padding;
+        buttonWidth = Minecraft.getInstance().font.width(Component.translatable("obsidian.options.buttons.undo")) + 2 * padding;
         x0 -= (buttonWidth + VGuiConstants.WIDGET_MARGIN);
         this.undoButton = new VButtonWidget(x0, y0, buttonWidth, VGuiConstants.WIDGET_HEIGHT,
-                Component.translatable("vulkanmod.options.buttons.undo"), button -> undo());
+                Component.translatable("obsidian.options.buttons.undo"), button -> undo());
 
         this.buttons.add(this.applyButton);
         this.buttons.add(doneButton);

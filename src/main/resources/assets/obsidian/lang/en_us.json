@@ -1,0 +1,80 @@
+{
+  "obsidian.options.unknown": "Unknown",
+
+  "obsidian.options.pages.video": "General",
+  "obsidian.options.pages.graphics": "Quality",
+  "obsidian.options.pages.optimizations": "Performance",
+  "obsidian.options.pages.other": "Advanced",
+
+  "obsidian.options.performanceImpact": "Performance impact: %s",
+  "obsidian.options.performanceImpact.low": "Low",
+  "obsidian.options.performanceImpact.medium": "Medium",
+  "obsidian.options.performanceImpact.high": "High",
+
+  "obsidian.options.buttons.apply": "Apply",
+  "obsidian.options.buttons.undo": "Undo",
+  "obsidian.options.buttons.kofi": "Support me",
+  "obsidian.options.buttons.update_available": "Update available!",
+
+  "obsidian.options.advCulling": "Advanced Chunk Culling",
+  "obsidian.options.advCulling.aggressive": "Aggressive",
+  "obsidian.options.advCulling.conservative": "Conservative",
+  "obsidian.options.advCulling.normal": "Normal",
+  "obsidian.options.advCulling.tooltip": "Use a culling algorithm that might improve performance by reducing the number of non visible chunk sections rendered.",
+
+  "obsidian.options.ao.subBlock": "Sub Block",
+  "obsidian.options.ao.subBlock.tooltip": "Enables smooth lighting for non full block (experimental).",
+
+  "obsidian.options.deviceSelector": "Device selector",
+  "obsidian.options.deviceSelector.auto": "Auto",
+  "obsidian.options.deviceSelector.tooltip": "Current device",
+
+  "obsidian.options.entityCulling": "Entity Culling",
+  "obsidian.options.entityCulling.tooltip": "Enables frustum and section visibility culling for entities.",
+  "obsidian.options.blockEntityCulling": "Block Entity Culling",
+  "obsidian.options.blockEntityCulling.tooltip": "Frustum-culls individual block entities (chests, signs, banners, beacons) to reduce CPU and draw overhead.",
+
+  "obsidian.options.frameQueue": "Render queue size",
+  "obsidian.options.frameQueue.tooltip": "Higher values might help stabilize frametime but will increase input lag.",
+
+  "obsidian.options.backfaceCulling": "Backface Culling",
+  "obsidian.options.backfaceCulling.tooltip": "Culls not visible block faces on the CPU improving GPU performance. To prevent increased CPU overhead enable Indirect Draw.",
+
+  "obsidian.options.indirectDraw": "Indirect Draw",
+  "obsidian.options.indirectDraw.tooltip": "Reduces CPU overhead but might increase GPU overhead.",
+
+  "obsidian.options.refreshRate": "Fullscreen Refresh Rate",
+
+  "obsidian.options.uniqueOpaqueLayer": "Unique opaque layer",
+  "obsidian.options.uniqueOpaqueLayer.tooltip": "Use a unique render layer for opaque terrain to improve performance.",
+
+  "obsidian.options.wayland": "Use Wayland",
+  "obsidian.options.wayland.tooltip": "Use Linux Wayland compositor if available (Experimental). Requires restart.",
+
+  "obsidian.options.windowMode": "Window Mode",
+  "obsidian.options.windowMode.windowed": "Windowed",
+  "obsidian.options.windowMode.windowedFullscreen": "Windowed Fullscreen",
+
+  "obsidian.options.builderThreads": "Chunk Builder Threads",
+  "obsidian.options.builderThreads.auto": "Auto",
+
+  "obsidian.options.textureAnimations": "Texture Animations",
+
+  "obsidian.options.asyncChunkUploads": "Async Chunk Uploads",
+  "obsidian.options.asyncChunkUploads.tooltip": "Synchronizes chunk uploads on the GPU with semaphores instead of stalling the CPU at frame end. Greatly improves frame pacing when loading chunks.",
+  "obsidian.options.chunkUploadBudget": "Chunk Upload Budget",
+  "obsidian.options.chunkUploadBudget.unlimited": "Unlimited",
+  "obsidian.options.chunkUploadBudget.tooltip": "Limits background chunk upload time per frame to prevent micro-stutters during world streaming. Player block edits always upload immediately.",
+  "obsidian.options.fastTerrainSampling": "Fast Terrain Sampling",
+  "obsidian.options.fastTerrainSampling.tooltip": "Uses a crisp nearest-neighbor mipmapped sampler and skips vanilla analytic pixel-edge AA shader math for extra GPU FPS. Off by default for 100% vanilla visuals.",
+  "obsidian.options.animateOnlyVisibleTextures": "Animate Only Visible Textures",
+  "obsidian.options.animateOnlyVisibleTextures.tooltip": "Only ticks and uploads animated block textures that are present in visible chunk sections, reducing CPU and GPU transfer overhead.",
+  "obsidian.options.hudMode": "FPS / VRAM Overlay",
+  "obsidian.options.hudMode.fps": "FPS Only",
+  "obsidian.options.hudMode.detailed": "FPS + VRAM + Chunks",
+  "obsidian.options.hudMode.tooltip": "Displays a lightweight corner overlay with FPS, VRAM usage, and visible chunk count without opening F3.",
+  "obsidian.options.persistentPipelineCache": "Persistent Pipeline Cache",
+  "obsidian.options.persistentPipelineCache.tooltip": "Saves compiled Vulkan graphics pipelines to disk to reduce shader hitching on subsequent launches.",
+
+  "obsidian.options.searchFieldPlaceholder": "Search Settings..."
+}

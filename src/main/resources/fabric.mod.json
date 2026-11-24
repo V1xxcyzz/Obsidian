@@ -1,19 +1,23 @@
 {
   "schemaVersion": 1,
-  "id": "vulkanmod",
+  "id": "obsidian",
+  "provides": [
+    "vulkanmod"
+  ],
   "version": "${version}",
 
-  "name": "VulkanMod",
-  "description": "Bring Vulkan to Minecraft!",
+  "name": "Obsidian",
+  "description": "A faster, smoother fork of VulkanMod with Sodium-style optimizations and a cleaner Video Settings menu.",
   "authors": [
-    "Collateral"
+    "Obsidian Contributors",
+    "Collateral (VulkanMod)"
   ],
   "contact": {
     "homepage": "",
     "sources": "https://github.com/xCollateral/VulkanMod"
   },
 
-  "icon": "assets/vulkanmod/vlogo.png",
+  "icon": "assets/obsidian/icon.png",
 
   "environment": "client",
   "entrypoints": {
@@ -22,9 +26,9 @@
     ]
   },
   "mixins": [
-    "vulkanmod.mixins.json"
+    "obsidian.mixins.json"
   ],
-  "accessWidener" : "vulkanmod.accesswidener",
+  "accessWidener": "obsidian.accesswidener",
 
   "depends": {
     "fabricloader": ">=0.14.14",

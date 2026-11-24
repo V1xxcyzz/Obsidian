@@ -25,6 +25,6 @@ public class OptionsScreenM extends Screen {
 
     @Inject(method = "lambda$init$2", at = @At("HEAD"), cancellable = true)
     private void injectVideoOptionScreen(CallbackInfoReturnable<Screen> cir) {
-        cir.setReturnValue(new VOptionScreen(Component.literal("Video Setting"), this));
+        cir.setReturnValue(new VOptionScreen(Component.literal("Obsidian Video Settings"), this));
     }
 }

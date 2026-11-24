@@ -10,10 +10,12 @@ import net.vulkanmod.render.chunk.build.frapi.VulkanModRenderer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class Initializer implements ClientModInitializer {
-	public static final Logger LOGGER = LogManager.getLogger("VulkanMod");
+	public static final Logger LOGGER = LogManager.getLogger("Obsidian");
 
 	private static String VERSION;
 	public static Config CONFIG;
@@ -21,16 +23,24 @@ public class Initializer implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		VERSION = FabricLoader.getInstance()
-				.getModContainer("vulkanmod")
-				.get()
+				.getModContainer("obsidian")
+				.or(() -> FabricLoader.getInstance().getModContainer("vulkanmod"))
+				.orElseThrow()
 				.getMetadata()
 				.getVersion().getFriendlyString();
 
-		LOGGER.info("== VulkanMod ==");
+		LOGGER.info("== Obsidian {} ==", VERSION);
 
-		var configPath = FabricLoader.getInstance()
-				.getConfigDir()
-				.resolve("vulkanmod_settings.json");
+		var configDir = FabricLoader.getInstance().getConfigDir();
+		var configPath = configDir.resolve("obsidian_settings.json");
+		var legacyPath = configDir.resolve("vulkanmod_settings.json");
+		if (!Files.exists(configPath) && Files.exists(legacyPath)) {
+			try {
+				Files.copy(legacyPath, configPath);
+			} catch (IOException e) {
+				LOGGER.warn("Failed to migrate legacy VulkanMod settings from {}", legacyPath, e);
+			}
+		}
 
 		CONFIG = loadConfig(configPath);
 		Platform.init();

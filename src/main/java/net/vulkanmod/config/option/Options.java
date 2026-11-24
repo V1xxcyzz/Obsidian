@@ -33,25 +33,25 @@ public abstract class Options {
         List<OptionPage> optionPages = new ArrayList<>();
 
         OptionPage page = new OptionPage(
-                Component.translatable("vulkanmod.options.pages.video").getString(),
+                Component.translatable("obsidian.options.pages.video").getString(),
                 Options.getVideoOpts()
         );
         optionPages.add(page);
 
         page = new OptionPage(
-                Component.translatable("vulkanmod.options.pages.graphics").getString(),
+                Component.translatable("obsidian.options.pages.graphics").getString(),
                 Options.getGraphicsOpts()
         );
         optionPages.add(page);
 
         page = new OptionPage(
-                Component.translatable("vulkanmod.options.pages.optimizations").getString(),
+                Component.translatable("obsidian.options.pages.optimizations").getString(),
                 Options.getOptimizationOpts()
         );
         optionPages.add(page);
 
         page = new OptionPage(
-                Component.translatable("vulkanmod.options.pages.other").getString(),
+                Component.translatable("obsidian.options.pages.other").getString(),
                 Options.getOtherOpts()
         );
         optionPages.add(page);
@@ -78,7 +78,7 @@ public abstract class Options {
         VideoModeManager.selectedVideoMode = videoMode;
         var refreshRates = videoModeSet.getRefreshRates();
 
-        var windowModeOption = new CyclingOption<>(Component.translatable("vulkanmod.options.windowMode"),
+        var windowModeOption = new CyclingOption<>(Component.translatable("obsidian.options.windowMode"),
                                                    WindowMode.values(),
                                                    value -> {
                                                        boolean exclusiveFullscreen = value == WindowMode.EXCLUSIVE_FULLSCREEN;
@@ -92,7 +92,7 @@ public abstract class Options {
                 .setTranslator(value -> Component.translatable(WindowMode.getComponentName(value)));
 
         CyclingOption<Integer> refreshRateOption = (CyclingOption<Integer>) new CyclingOption<>(
-                Component.translatable("vulkanmod.options.refreshRate"),
+                Component.translatable("obsidian.options.refreshRate"),
                 refreshRates.toArray(new Integer[0]),
                 (value) -> {
                     VideoModeManager.selectedVideoMode.refreshRate = value;
@@ -195,16 +195,16 @@ public abstract class Options {
                         new SwitchOption(Component.translatable("options.autosaveIndicator"),
                                 value -> mcOptions.showAutosaveIndicator().set(value),
                                 () -> mcOptions.showAutosaveIndicator().get()),
-                        new CyclingOption<>(Component.translatable("vulkanmod.options.hudMode"),
+                        new CyclingOption<>(Component.translatable("obsidian.options.hudMode"),
                                 new Integer[]{0, 1, 2},
                                 value -> config.hudMode = value,
                                 () -> config.hudMode)
                                 .setTranslator(v -> Component.translatable(switch (v) {
-                                    case 1 -> "vulkanmod.options.hudMode.fps";
-                                    case 2 -> "vulkanmod.options.hudMode.detailed";
+                                    case 1 -> "obsidian.options.hudMode.fps";
+                                    case 2 -> "obsidian.options.hudMode.detailed";
                                     default -> "options.off";
                                 }))
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.hudMode.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.hudMode.tooltip"))
                 })
         };
     }
@@ -331,11 +331,11 @@ public abstract class Options {
                                 .setTranslator(value -> Component.translatable(switch (value) {
                                     case LightMode.FLAT -> "options.off";
                                     case LightMode.SMOOTH -> "options.on";
-                                    case LightMode.SUB_BLOCK -> "vulkanmod.options.ao.subBlock";
-                                    default -> "vulkanmod.options.unknown";
+                                    case LightMode.SUB_BLOCK -> "obsidian.options.ao.subBlock";
+                                    default -> "obsidian.options.unknown";
                                 }))
                                 .setTooltip(value -> value == LightMode.SUB_BLOCK
-                                ? Component.translatable("vulkanmod.options.ao.subBlock.tooltip")
+                                ? Component.translatable("obsidian.options.ao.subBlock.tooltip")
                                 : Component.empty())
                                 .setImpact(PerformanceImpact.LOW),
                         new RangeOption(Component.translatable("options.biomeBlendRadius"),
@@ -384,68 +384,68 @@ public abstract class Options {
     public static OptionBlock[] getOptimizationOpts() {
         return new OptionBlock[]{
                 new OptionBlock("", new Option<?>[]{
-                        new CyclingOption<>(Component.translatable("vulkanmod.options.advCulling"),
+                        new CyclingOption<>(Component.translatable("obsidian.options.advCulling"),
                                 new Integer[]{1, 2, 3, 10},
                                 value -> config.advCulling = value,
                                 () -> config.advCulling)
                                 .setTranslator(v -> Component.translatable(switch (v) {
-                                    case 1 -> "vulkanmod.options.advCulling.aggressive";
-                                    case 2 -> "vulkanmod.options.advCulling.normal";
-                                    case 3 -> "vulkanmod.options.advCulling.conservative";
+                                    case 1 -> "obsidian.options.advCulling.aggressive";
+                                    case 2 -> "obsidian.options.advCulling.normal";
+                                    case 3 -> "obsidian.options.advCulling.conservative";
                                     case 10 -> "options.off";
-                                    default -> "vulkanmod.options.unknown";
+                                    default -> "obsidian.options.unknown";
                                 }))
-                                .setTooltip(v -> v <= 3 ? Component.translatable("vulkanmod.options.advCulling.tooltip") : Component.empty())
+                                .setTooltip(v -> v <= 3 ? Component.translatable("obsidian.options.advCulling.tooltip") : Component.empty())
                                 .setImpact(PerformanceImpact.HIGH),
-                        new SwitchOption(Component.translatable("vulkanmod.options.entityCulling"),
+                        new SwitchOption(Component.translatable("obsidian.options.entityCulling"),
                                 v -> config.entityCulling = v,
                                 () -> config.entityCulling)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.entityCulling.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.entityCulling.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH),
-                        new SwitchOption(Component.translatable("vulkanmod.options.blockEntityCulling"),
+                        new SwitchOption(Component.translatable("obsidian.options.blockEntityCulling"),
                                 v -> config.blockEntityCulling = v,
                                 () -> config.blockEntityCulling)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.blockEntityCulling.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.blockEntityCulling.tooltip"))
                                 .setImpact(PerformanceImpact.MEDIUM),
-                        new SwitchOption(Component.translatable("vulkanmod.options.uniqueOpaqueLayer"),
+                        new SwitchOption(Component.translatable("obsidian.options.uniqueOpaqueLayer"),
                                 v -> {
                                     config.uniqueOpaqueLayer = v;
                                     TerrainRenderType.updateMapping();
                                     if (WorldRenderer.getInstance() != null) WorldRenderer.getInstance().allChanged();
                                 },
                                 () -> config.uniqueOpaqueLayer)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.uniqueOpaqueLayer.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.uniqueOpaqueLayer.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH),
-                        new SwitchOption(Component.translatable("vulkanmod.options.backfaceCulling"),
+                        new SwitchOption(Component.translatable("obsidian.options.backfaceCulling"),
                                 v -> {
                                     config.backFaceCulling = v;
                                     if (WorldRenderer.getInstance() != null) WorldRenderer.getInstance().allChanged();
                                 },
                                 () -> config.backFaceCulling)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.backfaceCulling.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.backfaceCulling.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH),
-                        new SwitchOption(Component.translatable("vulkanmod.options.indirectDraw"),
+                        new SwitchOption(Component.translatable("obsidian.options.indirectDraw"),
                                 v -> config.indirectDraw = v,
                                 () -> config.indirectDraw)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.indirectDraw.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.indirectDraw.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH)
                 }),
                 new OptionBlock("", new Option<?>[]{
-                        new SwitchOption(Component.translatable("vulkanmod.options.asyncChunkUploads"),
+                        new SwitchOption(Component.translatable("obsidian.options.asyncChunkUploads"),
                                 v -> config.asyncChunkUploads = v,
                                 () -> config.asyncChunkUploads)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.asyncChunkUploads.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.asyncChunkUploads.tooltip"))
                                 .setImpact(PerformanceImpact.HIGH),
-                        new CyclingOption<>(Component.translatable("vulkanmod.options.chunkUploadBudget"),
+                        new CyclingOption<>(Component.translatable("obsidian.options.chunkUploadBudget"),
                                 new Integer[]{0, 1, 2, 4, 8},
                                 value -> config.chunkUploadBudgetMs = value,
                                 () -> config.chunkUploadBudgetMs)
                                 .setTranslator(v -> v == 0
-                                        ? Component.translatable("vulkanmod.options.chunkUploadBudget.unlimited")
+                                        ? Component.translatable("obsidian.options.chunkUploadBudget.unlimited")
                                         : Component.literal(v + " ms"))
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.chunkUploadBudget.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.chunkUploadBudget.tooltip"))
                                 .setImpact(PerformanceImpact.MEDIUM),
-                        new SwitchOption(Component.translatable("vulkanmod.options.fastTerrainSampling"),
+                        new SwitchOption(Component.translatable("obsidian.options.fastTerrainSampling"),
                                 v -> {
                                     config.fastTerrainSampling = v;
                                     if (WorldRenderer.getInstance() != null) {
@@ -453,12 +453,12 @@ public abstract class Options {
                                     }
                                 },
                                 () -> config.fastTerrainSampling)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.fastTerrainSampling.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.fastTerrainSampling.tooltip"))
                                 .setImpact(PerformanceImpact.MEDIUM),
-                        new SwitchOption(Component.translatable("vulkanmod.options.animateOnlyVisibleTextures"),
+                        new SwitchOption(Component.translatable("obsidian.options.animateOnlyVisibleTextures"),
                                 v -> config.animateOnlyVisibleTextures = v,
                                 () -> config.animateOnlyVisibleTextures)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.animateOnlyVisibleTextures.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.animateOnlyVisibleTextures.tooltip"))
                                 .setImpact(PerformanceImpact.MEDIUM)
                 })
         };
@@ -467,7 +467,7 @@ public abstract class Options {
     public static OptionBlock[] getOtherOpts() {
         return new OptionBlock[]{
                 new OptionBlock("", new Option<?>[]{
-                        new RangeOption(Component.translatable("vulkanmod.options.builderThreads"),
+                        new RangeOption(Component.translatable("obsidian.options.builderThreads"),
                                 0, Runtime.getRuntime().availableProcessors() - 1, 1,
                                 value -> {
                                     config.builderThreads = value;
@@ -477,42 +477,42 @@ public abstract class Options {
                                 },
                                 () -> config.builderThreads)
                                 .setTranslator(v -> v == 0
-                                ? Component.translatable("vulkanmod.options.builderThreads.auto")
+                                ? Component.translatable("obsidian.options.builderThreads.auto")
                                 : Component.literal(String.valueOf(v))),
-                        new RangeOption(Component.translatable("vulkanmod.options.frameQueue"),
+                        new RangeOption(Component.translatable("obsidian.options.frameQueue"),
                                 2, 5, 1,
                                 value -> {
                                     config.frameQueueSize = value;
                                     Renderer.scheduleSwapChainUpdate();
                                 },
                                 () -> config.frameQueueSize)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.frameQueue.tooltip")),
-                        new SwitchOption(Component.translatable("vulkanmod.options.textureAnimations"),
+                                .setTooltip(v -> Component.translatable("obsidian.options.frameQueue.tooltip")),
+                        new SwitchOption(Component.translatable("obsidian.options.textureAnimations"),
                                 v -> config.textureAnimations = v,
                                 () -> config.textureAnimations),
-                        new SwitchOption(Component.translatable("vulkanmod.options.persistentPipelineCache"),
+                        new SwitchOption(Component.translatable("obsidian.options.persistentPipelineCache"),
                                 v -> config.persistentPipelineCache = v,
                                 () -> config.persistentPipelineCache)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.persistentPipelineCache.tooltip"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.persistentPipelineCache.tooltip"))
                                 .setImpact(PerformanceImpact.LOW)
                 }),
                 new OptionBlock("", new Option<?>[]{
-                        new SwitchOption(Component.translatable("vulkanmod.options.wayland"),
+                        new SwitchOption(Component.translatable("obsidian.options.wayland"),
                                          v -> config.useWayland = v,
                                          () -> config.useWayland)
                                 .setActivationFn(Platform::isLinux)
-                                .setTooltip(v -> Component.translatable("vulkanmod.options.wayland.tooltip")),
-                        new CyclingOption<>(Component.translatable("vulkanmod.options.deviceSelector"),
+                                .setTooltip(v -> Component.translatable("obsidian.options.wayland.tooltip")),
+                        new CyclingOption<>(Component.translatable("obsidian.options.deviceSelector"),
                                 IntStream.range(-1, DeviceManager.suitableDevices.size())
                                         .boxed()
                                         .toArray(Integer[]::new),
                                 value -> config.device = value,
                                 () -> config.device)
                                 .setTranslator(v -> Component.translatable(
-                                        v == -1 ? "vulkanmod.options.deviceSelector.auto"
+                                        v == -1 ? "obsidian.options.deviceSelector.auto"
                                                 : DeviceManager.suitableDevices.get(v).deviceName))
                                 .setTooltip(v -> Component.literal(
-                                Component.translatable("vulkanmod.options.deviceSelector.tooltip").getString() + ": " +
+                                Component.translatable("obsidian.options.deviceSelector.tooltip").getString() + ": " +
                                         DeviceManager.device.deviceName))
                 })
         };

@@ -66,7 +66,7 @@ public class SpirvCompiler {
         Shaderc.shaderc_compile_options_set_auto_map_locations(options, true);
 
         includePaths = new ObjectArrayList<>();
-        addIncludePath("/assets/vulkanmod/shaders/include/");
+        addIncludePath("/assets/obsidian/shaders/include/");
     }
 
     public static void addIncludePath(String path) {

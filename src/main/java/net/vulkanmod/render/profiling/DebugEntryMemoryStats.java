@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 public class DebugEntryMemoryStats implements DebugScreenEntry {
-    private static final Identifier GROUP = Identifier.withDefaultNamespace("vk_memory");
+    private static final Identifier GROUP = Identifier.withDefaultNamespace("obsidian_memory");
 
     @Override
     public void display(DebugScreenDisplayer debugScreenDisplayer, @Nullable Level level,

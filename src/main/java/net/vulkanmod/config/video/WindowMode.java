@@ -23,8 +23,8 @@ public enum WindowMode {
 
     public static String getComponentName(WindowMode windowMode) {
         return switch (windowMode) {
-            case WINDOWED -> "vulkanmod.options.windowMode.windowed";
-            case WINDOWED_FULLSCREEN -> "vulkanmod.options.windowMode.windowedFullscreen";
+            case WINDOWED -> "obsidian.options.windowMode.windowed";
+            case WINDOWED_FULLSCREEN -> "obsidian.options.windowMode.windowedFullscreen";
             case EXCLUSIVE_FULLSCREEN -> "options.fullscreen";
         };
     }
