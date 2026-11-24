@@ -23,8 +23,7 @@ public class ClientChunkCacheM {
 
     @Inject(method = "replaceWithPacketData", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/multiplayer/ClientLevel;onChunkLoaded(Lnet/minecraft/world/level/ChunkPos;)V"))
-    private void setChunkStatus(int x, int z, FriendlyByteBuf friendlyByteBuf, Map<Heightmap.Types, long[]> map,
-                                Consumer<ClientboundLevelChunkPacketData.BlockEntityTagOutput> consumer,
+    private void setChunkStatus(int x, int z, ClientboundLevelChunkPacketData packetData,
                                 CallbackInfoReturnable<LevelChunk> cir) {
         ChunkStatusMap.INSTANCE.setChunkStatus(x, z, ChunkStatusMap.DATA_READY);
     }

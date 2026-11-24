@@ -216,7 +216,7 @@ public abstract class AbstractBlockRenderContext extends AbstractRenderContext {
 	}
 
 	private int getBlockColor(BlockAndTintGetter region, int colorIndex) {
-		BlockTintSource blockColor = this.blockColorRegistry.getBlockColor(this.blockState.getBlock());
+		BlockTintSource blockColor = this.blockColorRegistry.getBlockColor(this.blockState.getBlock(), colorIndex);
 
 		int color = blockColor != null ? blockColor.colorInWorld(blockState, region, blockPos) : -1;
 		return 0xFF000000 | color;

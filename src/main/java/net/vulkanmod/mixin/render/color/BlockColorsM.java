@@ -11,6 +11,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.List;
+
 @Mixin(BlockColors.class)
 public class BlockColorsM implements BlockColorsExtended {
 
@@ -18,8 +20,8 @@ public class BlockColorsM implements BlockColorsExtended {
 	private BlockColorRegistry colorResolvers = new BlockColorRegistry();
 
 	@Inject(method = "register", at = @At("RETURN"))
-	private void onRegister(BlockTintSource blockColor, Block[] blocks, CallbackInfo ci) {
-		this.colorResolvers.register(blockColor, blocks);
+	private void onRegister(List<BlockTintSource> blockColors, Block[] blocks, CallbackInfo ci) {
+		this.colorResolvers.register(blockColors, blocks);
 	}
 
 	@Override

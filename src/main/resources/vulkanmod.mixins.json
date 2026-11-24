@@ -62,7 +62,6 @@
     "render.target.RenderTargetMixin",
     "render.vertex.BufferBuilderM",
     "render.vertex.IndexTypeMixin",
-    "render.vertex.VertexConsumerM",
 
     "screen.ScreenM",
     "screen.OptionsScreenM",
