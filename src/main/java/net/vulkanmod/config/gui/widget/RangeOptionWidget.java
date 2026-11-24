@@ -12,7 +12,6 @@ import net.vulkanmod.vulkan.util.ColorUtil;
 import com.mojang.blaze3d.platform.InputConstants;
 
 public class RangeOptionWidget extends OptionWidget<RangeOption> {
-    private boolean focused;
 
     public RangeOptionWidget(RangeOption option, Component name) {
         super(option, name);
@@ -75,16 +74,6 @@ public class RangeOptionWidget extends OptionWidget<RangeOption> {
         }
 
         return false;
-    }
-
-    @Override
-    public void setFocused(boolean bl) {
-        this.focused = bl;
-    }
-
-    @Override
-    public boolean isFocused() {
-        return this.focused;
     }
 
     private void setValueFromMouse(double mouseX) {

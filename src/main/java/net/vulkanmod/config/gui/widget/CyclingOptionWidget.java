@@ -14,8 +14,6 @@ public class CyclingOptionWidget extends OptionWidget<CyclingOption<?>> {
     private final Button leftButton;
     private final Button rightButton;
 
-    private boolean focused;
-
     public CyclingOptionWidget(CyclingOption<?> option, Component name) {
         super(option, name);
         this.leftButton = new Button(Button.Direction.LEFT);
@@ -94,16 +92,6 @@ public class CyclingOptionWidget extends OptionWidget<CyclingOption<?>> {
     @Override
     protected void onDrag(double mouseX, double mouseY, double deltaX, double deltaY) {
 
-    }
-
-    @Override
-    public void setFocused(boolean bl) {
-        this.focused = bl;
-    }
-
-    @Override
-    public boolean isFocused() {
-        return this.focused;
     }
 
     class Button {

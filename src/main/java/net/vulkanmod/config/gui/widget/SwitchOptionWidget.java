@@ -8,7 +8,6 @@ import net.vulkanmod.config.option.SwitchOption;
 import net.vulkanmod.vulkan.util.ColorUtil;
 
 public class SwitchOptionWidget extends OptionWidget<SwitchOption> {
-    private boolean focused;
 
     public SwitchOptionWidget(SwitchOption option, Component name) {
         super(option, name);
@@ -71,20 +70,15 @@ public class SwitchOptionWidget extends OptionWidget<SwitchOption> {
 
     }
 
+    @Override
+    protected boolean clicked(double mouseX, double mouseY) {
+        return this.isMouseOver(mouseX, mouseY);
+    }
+
     protected void updateDisplayedValue() {
         this.displayedValue = option.getNewValue()
                 ? Component.translatable("options.on")
                 : Component.translatable("options.off");
-    }
-
-    @Override
-    public void setFocused(boolean bl) {
-        this.focused = bl;
-    }
-
-    @Override
-    public boolean isFocused() {
-        return this.focused;
     }
 
 }

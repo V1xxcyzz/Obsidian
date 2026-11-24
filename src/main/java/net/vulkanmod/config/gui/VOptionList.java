@@ -1,5 +1,6 @@
 package net.vulkanmod.config.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.vulkanmod.vulkan.VRenderSystem;
 import net.minecraft.client.Minecraft;
@@ -80,7 +81,7 @@ public class VOptionList extends GuiElement {
     }
 
     protected void updateScrollingState(double mouseX, int button) {
-        this.scrolling = button == 0 && mouseX >= (double) this.getScrollbarPosition() && mouseX < (double) (this.getScrollbarPosition() + 6);
+        this.scrolling = button == InputConstants.MOUSE_BUTTON_LEFT && mouseX >= (double) this.getScrollbarPosition() && mouseX < (double) (this.getScrollbarPosition() + 6);
     }
 
     protected float getScrollAmount() {
@@ -106,6 +107,9 @@ public class VOptionList extends GuiElement {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
         this.updateScrollingState(event.x(), event.button());
+        if (this.scrolling && event.y() >= (double) this.y && event.y() <= (double) (this.y + this.height)) {
+            return true;
+        }
         if (this.isMouseOver(event.x(), event.y())) {
             Entry entry = this.getEntryAtPos(event.x(), event.y());
             if (entry != null && entry.mouseClicked(event, bl)) {
@@ -114,7 +118,7 @@ public class VOptionList extends GuiElement {
                 return true;
             }
 
-            return event.button() == 0;
+            return event.button() == InputConstants.MOUSE_BUTTON_LEFT;
         }
 
         return false;
@@ -145,7 +149,7 @@ public class VOptionList extends GuiElement {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
-        if (event.button() != 0) {
+        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
 
@@ -195,7 +199,7 @@ public class VOptionList extends GuiElement {
     protected VOptionList.Entry getEntryAtPos(double x, double y) {
         int x0 = this.x;
 
-        if (x > this.getScrollbarPosition() || x < (double) x0 || y < (double) this.y || y > (double) (this.y + this.height))
+        if (x >= this.getScrollbarPosition() || x < (double) x0 || y < (double) this.y || y > (double) (this.y + this.height))
             return null;
 
         for (var entry : this.children) {
@@ -292,7 +296,7 @@ public class VOptionList extends GuiElement {
     }
 
     protected boolean isValidClickButton(int i) {
-        return i == 0;
+        return i == InputConstants.MOUSE_BUTTON_LEFT;
     }
 
     protected static class Entry implements GuiEventListener {

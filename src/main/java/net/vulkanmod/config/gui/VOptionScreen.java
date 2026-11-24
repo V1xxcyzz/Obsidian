@@ -261,6 +261,7 @@ public class VOptionScreen extends Screen {
 
         this.searchField.setInput(savedInput);
         if (savedFocused) {
+            this.setFocused(this.searchField);
             this.searchField.setFocused(true);
             this.searchField.setSelected(savedSelected);
         }
@@ -306,7 +307,7 @@ public class VOptionScreen extends Screen {
                     this.searchField.setFocused(false);
                 }
                 this.setFocused(this.children().contains(element) ? element : null);
-                if (event.button() == 0) {
+                if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                     this.setDragging(true);
                 }
 

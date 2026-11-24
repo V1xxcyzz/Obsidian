@@ -218,7 +218,7 @@ public class VTextInputWidget extends VAbstractWidget {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
-        if (!this.active || !this.visible) return false;
+        if (!this.active || !this.visible || !this.isValidClickButton(event.button())) return false;
 
         boolean clicked = this.clicked(event.x(), event.y());
         if (clicked) {
