@@ -2,6 +2,7 @@ package net.vulkanmod.mixin.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
 import net.minecraft.client.renderer.SkyRenderer;
 import net.minecraft.client.renderer.state.level.SkyRenderState;
 import net.vulkanmod.Initializer;
@@ -21,7 +22,7 @@ public class SkyRendererMixin {
     }
 
     @Inject(method = "renderStars", at = @At("HEAD"), cancellable = true)
-    private void skipStarsRender(float starBrightness, PoseStack poseStack, CallbackInfo ci) {
+    private void skipStarsRender(RenderPass renderPass, float starBrightness, PoseStack poseStack, CallbackInfo ci) {
         if (Initializer.CONFIG != null && Initializer.CONFIG.skyRenderMode >= 1) {
             ci.cancel();
         }
