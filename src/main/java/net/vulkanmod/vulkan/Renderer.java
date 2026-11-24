@@ -905,7 +905,7 @@ public class Renderer {
     }
 
     public static void setViewportState(int x, int y, int width, int height) {
-        GlStateManager._viewport(x, y, width, height);
+        setViewport(x, y, width, height);
     }
 
     public static void setViewport(int x, int y, int width, int height) {

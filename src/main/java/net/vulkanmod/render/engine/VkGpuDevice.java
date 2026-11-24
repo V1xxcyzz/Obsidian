@@ -172,7 +172,8 @@ public class VkGpuDevice implements GpuDeviceBackend {
         VkGlTexture glTexture = VkGlTexture.getTexture(id);
         glTexture.setVulkanImage(image);
         GpuFormat gpuFormat = VkGpuTexture.textureFormat(image.format);
-        VkGpuTexture gpuTexture = new VkGpuTexture(0, image.name, gpuFormat, image.width, image.height, 1, image.mipLevels, id, glTexture);
+        int usage = GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC | GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT;
+        VkGpuTexture gpuTexture = new VkGpuTexture(usage, image.name, gpuFormat, image.width, image.height, 1, image.mipLevels, id, glTexture);
         this.debugLabels.applyLabel(gpuTexture);
         return gpuTexture;
     }

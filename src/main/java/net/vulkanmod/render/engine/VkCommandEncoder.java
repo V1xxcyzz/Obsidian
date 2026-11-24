@@ -823,10 +823,9 @@ public class VkCommandEncoder implements CommandEncoderBackend {
             this.lastPipeline = backendPipeline;
 
             DepthStencilState dss = backendPipeline.depthStencilState();
-            CompareOp depthFunc = dss.depthTest();
-            if (depthFunc != CompareOp.ALWAYS_PASS) {
+            if (dss != null && dss.depthTest() != CompareOp.ALWAYS_PASS) {
                 VRenderSystem.depthTest = true;
-                VRenderSystem.depthFun = VkConst.toVkDepthOp(depthFunc);
+                VRenderSystem.depthFun = VkConst.toVkDepthOp(dss.depthTest());
             } else {
                 VRenderSystem.depthTest = false;
             }
@@ -834,7 +833,7 @@ public class VkCommandEncoder implements CommandEncoderBackend {
             VRenderSystem.cullMode = backendPipeline.cull() ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
 
             var colorTargets = backendPipeline.colorTargetStates();
-            ColorTargetState cts = colorTargets.isEmpty() ? ColorTargetState.DEFAULT : colorTargets.get(0);
+            ColorTargetState cts = (colorTargets == null || colorTargets.isEmpty()) ? ColorTargetState.DEFAULT : colorTargets.get(0);
             if (cts != null && cts.blendFunction().isPresent()) {
                 BlendFunction blendFunction = cts.blendFunction().get();
                 PipelineState.blendInfo.enabled = true;
@@ -850,7 +849,7 @@ public class VkCommandEncoder implements CommandEncoderBackend {
 
             VRenderSystem.polygonMode = backendPipeline.polygonMode() == PolygonMode.WIREFRAME
                     ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-            VRenderSystem.depthMask = dss.writeDepth();
+            VRenderSystem.depthMask = dss != null && dss.writeDepth();
             if (cts != null) {
                 VRenderSystem.colorMask = PipelineState.ColorMask.getColorMask(
                         cts.writeRed(), cts.writeGreen(),
@@ -859,8 +858,8 @@ public class VkCommandEncoder implements CommandEncoderBackend {
                 VRenderSystem.colorMask = PipelineState.ColorMask.getColorMask(true, true, true, true);
             }
 
-            float biasConst = dss.depthBiasConstant();
-            float biasSlope = dss.depthBiasScaleFactor();
+            float biasConst = dss != null ? dss.depthBiasConstant() : 0.0F;
+            float biasSlope = dss != null ? dss.depthBiasScaleFactor() : 0.0F;
             if (biasConst == 0.0F && biasSlope == 0.0F) {
                 VRenderSystem.disablePolygonOffset();
             } else {

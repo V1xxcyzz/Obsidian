@@ -16,10 +16,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(FogRenderer.class)
 public class FogRendererMixin {
 
-    @Inject(method = "setupFog", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/Mth;clamp(FFF)F"))
+    @Inject(method = "setupFog", at = @At("RETURN"))
     private void onSetupFog(Camera camera, int i, DeltaTracker deltaTracker, float f, ClientLevel clientLevel,
-                            CallbackInfoReturnable<Vector4f> cir, @Local FogData fogData, @Local Vector4f fogColor) {
+                            CallbackInfoReturnable<FogData> cir) {
+        FogData fogData = cir.getReturnValue();
         VRenderSystem.fogData = fogData;
-        VRenderSystem.setShaderFogColor(fogColor.x(), fogColor.y(), fogColor.z(), fogColor.w());
+        if (fogData != null && fogData.color != null) {
+            VRenderSystem.setShaderFogColor(fogData.color.x(), fogData.color.y(), fogData.color.z(), fogData.color.w());
+        }
     }
 }
