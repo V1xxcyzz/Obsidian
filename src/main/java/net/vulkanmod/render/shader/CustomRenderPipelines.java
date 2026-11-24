@@ -1,10 +1,5 @@
 package net.vulkanmod.render.shader;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.renderpearl.api.pipeline.BlendFunction;
-import com.mojang.renderpearl.api.pipeline.ColorTargetState;
-import com.mojang.renderpearl.api.pipeline.CompareOp;
-import com.mojang.renderpearl.api.pipeline.DepthStencilState;
 import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -16,17 +11,13 @@ public class CustomRenderPipelines {
 
     public static final List<RenderPipeline> pipelines = new ArrayList<>();
 
-    public static final RenderPipeline.Snippet GUI_TRIANGLES_SNIPPET = RenderPipeline.builder(RenderPipelines.GLOBALS_SNIPPET, RenderPipelines.MATRICES_FOG_SNIPPET)
-            .withVertexShader("core/gui")
-            .withFragmentShader("core/gui")
-            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
-            .withVertexBinding(0, DefaultVertexFormat.POSITION_COLOR)
+    public static final RenderPipeline.Snippet GUI_TRIANGLES_SNIPPET = RenderPipeline.builder(RenderPipelines.GUI_SNIPPET)
             .withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
-            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
+            .withCull(false)
             .buildSnippet();
 
     public static final RenderPipeline GUI_TRIANGLES = register(
-            RenderPipeline.builder(GUI_TRIANGLES_SNIPPET).withLocation("pipeline/gui").build()
+            RenderPipeline.builder(GUI_TRIANGLES_SNIPPET).withLocation("pipeline/obsidian_gui_triangles").build()
     );
 
     static RenderPipeline register(RenderPipeline pipeline) {

@@ -63,6 +63,9 @@ public abstract class Options {
         VideoModeManager.checkConfigVideoMode(config);
         VideoModeManager.selectBestMonitor(window);
         var resolutions = VideoModeManager.getVideoResolutions();
+        if (resolutions == null || resolutions.length == 0) {
+            resolutions = new VideoModeSet[]{VideoModeSet.getDummy()};
+        }
 
         var videoMode = config.videoMode;
         var videoModeSet = VideoModeManager.getVideoModeSet(videoMode);
@@ -216,8 +219,9 @@ public abstract class Options {
                                                          if ((oldValue == TextureFilteringMethod.ANISOTROPIC && value != TextureFilteringMethod.ANISOTROPIC)
                                                              || (value == TextureFilteringMethod.ANISOTROPIC && oldValue != TextureFilteringMethod.ANISOTROPIC)) {
                                                              minecraft.delayTextureReload();
-                                                             WorldRenderer.getInstance()
-                                                                          .resetSampler();
+                                                             if (WorldRenderer.getInstance() != null) {
+                                                                 WorldRenderer.getInstance().resetSampler();
+                                                             }
                                                          }
 
                                                          mcOptions.textureFiltering()
@@ -244,8 +248,9 @@ public abstract class Options {
                                                       if (mcOptions.textureFiltering().get() == TextureFilteringMethod.ANISOTROPIC
                                                           && !oldValue.equals(value)) {
                                                           minecraft.delayTextureReload();
-                                                          WorldRenderer.getInstance()
-                                                                       .resetSampler();
+                                                          if (WorldRenderer.getInstance() != null) {
+                                                              WorldRenderer.getInstance().resetSampler();
+                                                          }
                                                       }
 
                                                       mcOptions.maxAnisotropyBit()
@@ -443,7 +448,9 @@ public abstract class Options {
                         new SwitchOption(Component.translatable("vulkanmod.options.fastTerrainSampling"),
                                 v -> {
                                     config.fastTerrainSampling = v;
-                                    WorldRenderer.getInstance().resetSampler();
+                                    if (WorldRenderer.getInstance() != null) {
+                                        WorldRenderer.getInstance().resetSampler();
+                                    }
                                 },
                                 () -> config.fastTerrainSampling)
                                 .setTooltip(v -> Component.translatable("vulkanmod.options.fastTerrainSampling.tooltip"))
@@ -464,7 +471,9 @@ public abstract class Options {
                                 0, Runtime.getRuntime().availableProcessors() - 1, 1,
                                 value -> {
                                     config.builderThreads = value;
-                                    WorldRenderer.getInstance().getTaskDispatcher().createThreads(value);
+                                    if (WorldRenderer.getInstance() != null) {
+                                        WorldRenderer.getInstance().getTaskDispatcher().createThreads(value);
+                                    }
                                 },
                                 () -> config.builderThreads)
                                 .setTranslator(v -> v == 0

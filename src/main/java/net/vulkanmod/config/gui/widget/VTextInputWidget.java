@@ -4,6 +4,7 @@ import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ComponentPath;
 import net.minecraft.client.gui.navigation.FocusNavigationEvent;
+import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -12,7 +13,6 @@ import net.vulkanmod.config.gui.util.VGuiConstants;
 import net.vulkanmod.vulkan.util.ColorUtil;
 import com.mojang.blaze3d.platform.InputConstants;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.sdl.SDLKeyboard;
 
 import java.util.function.Consumer;
 
@@ -153,25 +153,31 @@ public class VTextInputWidget extends VAbstractWidget {
             return true;
         }
 
-        String keyName = SDLKeyboard.SDL_GetKeyName(keyEvent.key());
-        if (keyName != null && keyName.length() == 1) {
-            char c = keyEvent.hasShiftDown() ? keyName.toUpperCase().charAt(0) : keyName.charAt(0);
+        return false;
+    }
 
-            if (cursorPos != selectionEnd) {
-                int start = Math.min(cursorPos, selectionEnd);
-                int end = Math.max(cursorPos, selectionEnd);
-                this.text = text.substring(0, start) + c + text.substring(end);
-                cursorPos = start + 1;
-            } else {
-                this.text = text.substring(0, cursorPos) + c + text.substring(cursorPos);
-                cursorPos++;
-            }
-            selectionEnd = cursorPos;
-            this.onSearch.accept(this);
-            return true;
+    @Override
+    public boolean charTyped(CharacterEvent event) {
+        if (!this.active || !this.visible || (!this.focused && !this.selected)) {
+            return false;
+        }
+        if (!event.isAllowedChatCharacter()) {
+            return false;
         }
 
-        return false;
+        String s = event.codepointAsString();
+        if (cursorPos != selectionEnd) {
+            int start = Math.min(cursorPos, selectionEnd);
+            int end = Math.max(cursorPos, selectionEnd);
+            this.text = text.substring(0, start) + s + text.substring(end);
+            cursorPos = start + s.length();
+        } else {
+            this.text = text.substring(0, cursorPos) + s + text.substring(cursorPos);
+            cursorPos += s.length();
+        }
+        selectionEnd = cursorPos;
+        this.onSearch.accept(this);
+        return true;
     }
 
     public String getInput() {
@@ -180,6 +186,9 @@ public class VTextInputWidget extends VAbstractWidget {
 
     public void setInput(String input) {
         this.text = input != null ? input : "";
+        int len = this.text.length();
+        this.cursorPos = Math.min(Math.max(0, this.cursorPos), len);
+        this.selectionEnd = Math.min(Math.max(0, this.selectionEnd), len);
     }
 
     @SuppressWarnings("unused")

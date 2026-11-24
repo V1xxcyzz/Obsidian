@@ -125,7 +125,8 @@ public class VOptionScreen extends Screen {
 
         int availableWidth = this.width - tabsEndX - rightMargin - 6;
         int searchWidth = Math.min(Math.max(100, availableWidth), 170);
-        int searchX = this.width - searchWidth - rightMargin;
+        int searchX = Math.max(tabsEndX + 4, this.width - searchWidth - rightMargin);
+        searchWidth = Math.max(60, Math.min(searchWidth, this.width - rightMargin - searchX));
 
         return new VTextInputWidget(
                 searchX, 6,
@@ -263,6 +264,7 @@ public class VOptionScreen extends Screen {
             this.searchField.setFocused(true);
             this.searchField.setSelected(savedSelected);
         }
+        this.updateState();
     }
 
     @SuppressWarnings("DuplicatedCode")
@@ -298,9 +300,12 @@ public class VOptionScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
-        for (GuiEventListener element : this.children()) {
+        for (GuiEventListener element : List.copyOf(this.children())) {
             if (element.mouseClicked(event, bl)) {
-                this.setFocused(element);
+                if (this.searchField != null && element != this.searchField) {
+                    this.searchField.setFocused(false);
+                }
+                this.setFocused(this.children().contains(element) ? element : null);
                 if (event.button() == 0) {
                     this.setDragging(true);
                 }
@@ -310,16 +315,26 @@ public class VOptionScreen extends Screen {
             }
         }
 
+        if (this.searchField != null) {
+            this.searchField.setFocused(false);
+        }
         return false;
     }
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         this.setDragging(false);
+        GuiEventListener focused = this.getFocused();
+        boolean handled;
+        if (focused != null) {
+            handled = focused.mouseReleased(event);
+        } else {
+            handled = this.getChildAt(event.x(), event.y())
+                          .filter(guiEventListener -> guiEventListener.mouseReleased(event))
+                          .isPresent();
+        }
         this.updateState();
-        return this.getChildAt(event.x(), event.y())
-                   .filter(guiEventListener -> guiEventListener.mouseReleased(event))
-                   .isPresent();
+        return handled;
     }
 
     @Override

@@ -62,7 +62,6 @@
     "render.vertex.BufferBuilderM",
     "render.vertex.IndexTypeMixin",
 
-    "screen.ScreenM",
     "screen.OptionsScreenM",
 
     "texture.TextureAtlasM",

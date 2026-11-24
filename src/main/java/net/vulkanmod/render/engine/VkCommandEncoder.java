@@ -790,9 +790,15 @@ public class VkCommandEncoder implements CommandEncoderBackend {
         setupUniforms(renderPass);
 
         if (renderPass.isScissorEnabled()) {
-            Renderer.setScissorTopDown(
-                    renderPass.getScissorX(), renderPass.getScissorY(), renderPass.getScissorWidth(), renderPass.getScissorHeight()
-            );
+            if (this.activePassInvertedY) {
+                Renderer.setScissorTopDown(
+                        renderPass.getScissorX(), renderPass.getScissorY(), renderPass.getScissorWidth(), renderPass.getScissorHeight()
+                );
+            } else {
+                Renderer.setScissor(
+                        renderPass.getScissorX(), renderPass.getScissorY(), renderPass.getScissorWidth(), renderPass.getScissorHeight()
+                );
+            }
         } else {
             Renderer.resetScissor();
         }

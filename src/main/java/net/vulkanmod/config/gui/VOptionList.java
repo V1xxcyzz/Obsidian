@@ -123,6 +123,14 @@ public class VOptionList extends GuiElement {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         if (this.isValidClickButton(event.button())) {
+            this.scrolling = false;
+            if (this.focused != null) {
+                Entry prev = this.focused;
+                prev.mouseReleased(event);
+                prev.setFocused(false);
+                setFocused(null);
+                return true;
+            }
             Entry entry = this.getEntryAtPos(event.x(), event.y());
             if (entry != null) {
                 if (entry.mouseReleased(event)) {
@@ -164,6 +172,9 @@ public class VOptionList extends GuiElement {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double xScroll, double yScroll) {
+        if (!this.isMouseOver(mouseX, mouseY)) {
+            return false;
+        }
         this.setScrollAmount(this.getScrollAmount() - yScroll * (double) this.totalItemHeight / 2.0);
         return true;
     }
@@ -184,7 +195,7 @@ public class VOptionList extends GuiElement {
     protected VOptionList.Entry getEntryAtPos(double x, double y) {
         int x0 = this.x;
 
-        if (x > this.getScrollbarPosition() || x < (double) x0)
+        if (x > this.getScrollbarPosition() || x < (double) x0 || y < (double) this.y || y > (double) (this.y + this.height))
             return null;
 
         for (var entry : this.children) {
@@ -262,6 +273,10 @@ public class VOptionList extends GuiElement {
         int rowTop = this.y - (int) this.getScrollAmount();
         for (int j = 0; j < itemCount; ++j) {
             VOptionList.Entry entry = this.getEntry(j);
+
+            if (entry.widget != null) {
+                entry.widget.y = rowTop;
+            }
 
             if (rowTop + entry.getTotalHeight() >= this.y && rowTop <= (this.y + this.height)) {
                 boolean updateState = this.focused == null;
