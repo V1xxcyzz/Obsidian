@@ -119,9 +119,7 @@ public class VkGpuDevice implements GpuDeviceBackend {
         VRenderSystem.setWindow(windowHandle);
         Vulkan.createSurface(windowHandle);
         DeviceManager.initSurfaceProperties();
-        if (Renderer.getInstance() == null) {
-            Renderer.initRenderer();
-        }
+        Renderer.initRenderer();
         return new VkGpuSurface(this, windowHandle, shouldClose);
     }
 

@@ -46,6 +46,7 @@ public class VkGpuBackend implements GpuBackend {
     @Override
     public GpuDevice createDevice(GpuDebugOptions options) throws BackendCreationException {
         VRenderSystem.initDevice();
+        Renderer.initDeviceResources();
 
         VkGpuDevice backend = new VkGpuDevice(this.windowHandle, options);
 

@@ -55,9 +55,20 @@ public class Renderer {
 
     private static boolean swapChainUpdate = false;
 
+    public static void initDeviceResources() {
+        if (INSTANCE == null) {
+            INSTANCE = new Renderer();
+            MemoryManager.createInstance(Renderer.getFramesNum());
+            Vulkan.createStagingBuffers();
+            INSTANCE.allocateCommandBuffers();
+        }
+    }
+
     public static void initRenderer() {
-        INSTANCE = new Renderer();
-        INSTANCE.init();
+        initDeviceResources();
+        if (INSTANCE.swapChain == null) {
+            INSTANCE.initSurface();
+        }
     }
 
     public static Renderer getInstance() {
@@ -136,10 +147,7 @@ public class Renderer {
         vkCmdSetLineWidth(INSTANCE.currentCmdBuffer, width);
     }
 
-    private void init() {
-        MemoryManager.createInstance(Renderer.getFramesNum());
-        Vulkan.createStagingBuffers();
-
+    private void initSurface() {
         swapChain = new SwapChain();
         mainPass = DefaultMainPass.create();
 
@@ -150,7 +158,6 @@ public class Renderer {
         PipelineManager.init();
         UploadManager.createInstance();
 
-        allocateCommandBuffers();
         createSyncObjects();
     }
 
