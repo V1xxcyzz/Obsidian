@@ -34,6 +34,13 @@ public abstract class PostPassM {
 
             gpuTexture.getVulkanImage().readOnlyLayout();
         }
+        VkCommandEncoder.setForceInvertedViewport(true);
+    }
+
+    @Inject(method = "lambda$addToFrame$1", at = @At("RETURN"))
+    private void resetPostPassViewport(ResourceHandle resourceHandle, GpuBufferSlice gpuBufferSlice, Map map,
+                                       CallbackInfo ci) {
+        VkCommandEncoder.setForceInvertedViewport(false);
     }
 
 }

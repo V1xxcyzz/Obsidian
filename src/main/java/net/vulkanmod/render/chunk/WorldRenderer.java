@@ -342,6 +342,7 @@ public class WorldRenderer {
         }
 
         VRenderSystem.enableCull();
+        VRenderSystem.frontFace = org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
         VRenderSystem.glDepthFun(GL11.GL_GEQUAL);
 
         VRenderSystem.enableDepthTest();

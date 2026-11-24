@@ -100,9 +100,9 @@ public class Framebuffer {
 
             LongBuffer attachments;
             if (colorAttachment != null && depthAttachment != null) {
-                attachments = stack.longs(colorAttachment.getImageView(), depthAttachment.getImageView());
+                attachments = stack.longs(getColorAttachmentView(), depthAttachment.getImageView());
             } else if (colorAttachment != null) {
-                attachments = stack.longs(colorAttachment.getImageView());
+                attachments = stack.longs(getColorAttachmentView());
             } else {
                 throw new IllegalStateException();
             }
@@ -112,8 +112,8 @@ public class Framebuffer {
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack);
             framebufferInfo.sType$Default();
             framebufferInfo.renderPass(renderPass.getId());
-            framebufferInfo.width(this.width);
-            framebufferInfo.height(this.height);
+            framebufferInfo.width(getWidth());
+            framebufferInfo.height(getHeight());
             framebufferInfo.layers(1);
             framebufferInfo.pAttachments(attachments);
 
@@ -142,11 +142,13 @@ public class Framebuffer {
     }
 
     public VkViewport.Buffer viewport(MemoryStack stack) {
+        int w = getWidth();
+        int h = getHeight();
         VkViewport.Buffer viewport = VkViewport.malloc(1, stack);
         viewport.x(0.0f);
-        viewport.y(this.height);
-        viewport.width(this.width);
-        viewport.height(-this.height);
+        viewport.y(h);
+        viewport.width(w);
+        viewport.height(-h);
         viewport.minDepth(0.0f);
         viewport.maxDepth(1.0f);
 
@@ -156,7 +158,7 @@ public class Framebuffer {
     public VkRect2D.Buffer scissor(MemoryStack stack) {
         VkRect2D.Buffer scissor = VkRect2D.malloc(1, stack);
         scissor.offset().set(0, 0);
-        scissor.extent().set(this.width, this.height);
+        scissor.extent().set(getWidth(), getHeight());
 
         return scissor;
     }
@@ -214,11 +216,11 @@ public class Framebuffer {
     }
 
     public int getWidth() {
-        return this.width;
+        return this.level == 0 ? this.width : Math.max(1, this.width >> this.level);
     }
 
     public int getHeight() {
-        return this.height;
+        return this.level == 0 ? this.height : Math.max(1, this.height >> this.level);
     }
 
     public int getFormat() {

@@ -290,7 +290,7 @@ public class PipelineState {
 
         public static final int TOPOLOGY_OFFSET = 3;
         public static final int TOPOLOGY_BITS = 4;
-        public static final int TOPOLOGY_MASK = 0b11111;
+        public static final int TOPOLOGY_MASK = 0b1111;
 
         public static final int CULL_MODE_OFFSET = TOPOLOGY_OFFSET + TOPOLOGY_BITS;
         public static final int CULL_MODE_BITS = 2;
@@ -321,7 +321,7 @@ public class PipelineState {
         }
 
         public static int decodeFrontFace(int state) {
-            return (state >>> FRONT_FACE_MASK) & FRONT_FACE_OFFSET;
+            return (state >>> FRONT_FACE_OFFSET) & FRONT_FACE_MASK;
         }
 
         public static int encodeTopology(int topology) {

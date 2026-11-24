@@ -43,7 +43,6 @@
     "render.FogRendererMixin",
     "render.GlStateManagerM",
     "render.MinecraftMixin",
-    "render.PictureInPictureRendererM",
     "render.PreferredGraphicsApiM",
     "render.RenderSetupAccessor",
     "render.RenderTypeM",
@@ -67,7 +66,6 @@
     "screen.OptionsScreenM",
 
     "texture.TextureAtlasM",
-    "texture.TextureAtlasSpriteMixin",
     "texture.image.NativeImageAccessor",
     "texture.update.MTextureManager",
     "util.ScreenshotMixin",

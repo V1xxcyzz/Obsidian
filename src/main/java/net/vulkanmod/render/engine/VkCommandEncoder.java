@@ -80,6 +80,8 @@ public class VkCommandEncoder implements CommandEncoderBackend {
     @Nullable
     private VulkanImage activeOffscreenColorImage;
     private boolean inRenderPass;
+    private boolean activePassInvertedY;
+    private static boolean forceInvertedViewport;
 
     private final int framebufferId = VkGlFramebuffer.genFramebufferId();
 
@@ -99,6 +101,10 @@ public class VkCommandEncoder implements CommandEncoderBackend {
         for (int i = 0; i < VkRenderPass.MAX_VERTEX_BUFFERS; i++) {
             this.boundVertexOffsets[i] = -1L;
         }
+    }
+
+    public static void setForceInvertedViewport(boolean force) {
+        forceInvertedViewport = force;
     }
 
     public void invalidateCachedState() {
@@ -194,6 +200,16 @@ public class VkCommandEncoder implements CommandEncoderBackend {
                 VRenderSystem.colorMask = PipelineState.ColorMask.getColorMask(true, true, true, true);
                 Renderer.clearAttachments(clearFlags);
             }
+            if (forceInvertedViewport) {
+                Framebuffer mainFb = Renderer.getInstance().getMainPass().getMainFramebuffer();
+                Renderer.setInvertedViewport(0, 0, mainFb.getWidth(), mainFb.getHeight());
+                this.activePassInvertedY = true;
+                VRenderSystem.frontFace = VK_FRONT_FACE_CLOCKWISE;
+            } else {
+                Renderer.resetViewport();
+                this.activePassInvertedY = false;
+                VRenderSystem.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+            }
         } else {
             GpuTexture depthTex = depthView != null ? depthView.texture() : null;
             VkFbo fbo = ((VkTextureView) colorView).getFbo(depthTex);
@@ -222,6 +238,8 @@ public class VkCommandEncoder implements CommandEncoderBackend {
             } else {
                 Renderer.setInvertedViewport(0, 0, colorView.getWidth(0), colorView.getHeight(0));
             }
+            this.activePassInvertedY = true;
+            VRenderSystem.frontFace = VK_FRONT_FACE_CLOCKWISE;
             this.activeOffscreenColorImage = ((VkTextureView) colorView).texture().getVulkanImage();
         }
 
@@ -244,6 +262,8 @@ public class VkCommandEncoder implements CommandEncoderBackend {
             }
             this.activeOffscreenColorImage = null;
         }
+        this.activePassInvertedY = false;
+        VRenderSystem.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         this.inRenderPass = false;
         this.resetBufferCache();
     }
@@ -840,6 +860,7 @@ public class VkCommandEncoder implements CommandEncoderBackend {
     }
 
     public void applyPipelineState(VkBackendRenderPipeline backendPipeline) {
+        VRenderSystem.frontFace = this.activePassInvertedY ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
         if (this.lastPipeline != backendPipeline) {
             this.lastPipeline = backendPipeline;
 
