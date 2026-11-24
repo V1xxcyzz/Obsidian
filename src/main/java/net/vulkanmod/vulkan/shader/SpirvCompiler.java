@@ -1,6 +1,7 @@
 package net.vulkanmod.vulkan.shader;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import net.vulkanmod.vulkan.Vulkan;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.NativeResource;
 import org.lwjgl.util.shaderc.Shaderc;
@@ -23,8 +24,8 @@ import static org.lwjgl.system.MemoryUtil.memASCII;
 import static org.lwjgl.util.shaderc.Shaderc.*;
 
 public class SpirvCompiler {
-    private static final boolean DEBUG = true;
-    private static final boolean OPTIMIZATIONS = false;
+    private static final boolean DEBUG = Vulkan.ENABLE_VALIDATION_LAYERS;
+    private static final boolean OPTIMIZATIONS = true;
 
     private static long compiler;
     private static long options;

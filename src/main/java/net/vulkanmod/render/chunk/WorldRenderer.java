@@ -112,6 +112,7 @@ public class WorldRenderer {
     private double xTransparentOld;
     private double yTransparentOld;
     private double zTransparentOld;
+    private int lastMarkedSpriteTick = -1;
 
     IndirectBuffer[] indirectBuffers;
 
@@ -260,6 +261,7 @@ public class WorldRenderer {
     public void allChanged() {
         if (this.level != null) {
             this.level.clearTintCaches();
+            this.lastMarkedSpriteTick = -1;
 
             this.renderRegionCache.clear();
             this.taskDispatcher.createThreads(Initializer.CONFIG.builderThreads);
@@ -326,12 +328,14 @@ public class WorldRenderer {
     public void renderSectionLayer(TerrainRenderType renderType, double camX, double camY, double camZ, Matrix4f modelView, Matrix4f projection) {
         Renderer.getInstance().getMainPass().rebindMainTarget();
 
-        this.sortTranslucentSections(camX, camY, camZ);
+        final boolean isTranslucent = renderType == TerrainRenderType.TRANSLUCENT;
+        if (isTranslucent) {
+            this.sortTranslucentSections(camX, camY, camZ);
+        }
 
         ProfilerFiller mcProfiler = net.minecraft.util.profiling.Profiler.get();
         Zone zone = mcProfiler.zone(() -> "render_" + renderType);
 
-        final boolean isTranslucent = renderType == TerrainRenderType.TRANSLUCENT;
         final boolean indirectDraw = Initializer.CONFIG.indirectDraw;
 
         if (!isTranslucent) {
@@ -418,6 +422,9 @@ public class WorldRenderer {
             renderType.setCutoutUniform();
             boolean firstArea = true;
 
+            int currentTick = net.vulkanmod.render.texture.SpriteUpdateUtil.getCurrentTick();
+            boolean markSpritesThisPass = Initializer.CONFIG.animateOnlyVisibleTextures && !isTranslucent && currentTick != this.lastMarkedSpriteTick;
+
             for (Iterator<ChunkArea> iterator = this.sectionGraph.getChunkAreaQueue().iterator(isTranslucent); iterator.hasNext(); ) {
                 ChunkArea chunkArea = iterator.next();
                 var queue = chunkArea.sectionQueue;
@@ -447,12 +454,11 @@ public class WorldRenderer {
                         drawBuffers.buildDrawBatchesDirect(cameraPos, queue, renderType);
                     }
 
-                    if (Initializer.CONFIG.animateOnlyVisibleTextures) {
-                        int tick = net.vulkanmod.render.texture.SpriteUpdateUtil.getCurrentTick();
+                    if (markSpritesThisPass) {
                         for (var secIt = queue.iterator(false); secIt.hasNext(); ) {
                             RenderSection section = secIt.next();
-                            if (section.lastSpriteMarkTick != tick) {
-                                section.lastSpriteMarkTick = tick;
+                            if (section.lastSpriteMarkTick != currentTick) {
+                                section.lastSpriteMarkTick = currentTick;
                                 int[] sprites = section.getCompiledSection().animatedSpriteIndices;
                                 if (sprites != null) {
                                     net.vulkanmod.render.texture.SpriteUpdateUtil.markActiveSprites(sprites);
@@ -461,6 +467,9 @@ public class WorldRenderer {
                         }
                     }
                 }
+            }
+            if (markSpritesThisPass) {
+                this.lastMarkedSpriteTick = currentTick;
             }
         }
 

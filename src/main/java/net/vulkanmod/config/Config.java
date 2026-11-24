@@ -37,6 +37,18 @@ public class Config {
     public boolean animateOnlyVisibleTextures = true;
     public boolean blockEntityCulling = true;
     public int hudMode = 0;
+    public int presentMode = 0;
+    public int hudPosition = 0;
+    public int hudStyle = 0;
+    public int hudScale = 100;
+    public boolean hudShowCoords = false;
+    public boolean hudShowPing = false;
+    public boolean hudShowGraph = false;
+    public boolean environmentalFog = true;
+    public int cloudHeightOffset = 0;
+    public int skyRenderMode = 0;
+    public boolean particleCulling = true;
+    public int maxParticleDistance = 64;
 
     public void write() {
         if (!Files.exists(CONFIG_PATH.getParent())) {

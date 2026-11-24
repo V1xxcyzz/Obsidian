@@ -51,6 +51,12 @@ public abstract class Options {
         optionPages.add(page);
 
         page = new OptionPage(
+                Component.translatable("obsidian.options.pages.extras").getString(),
+                Options.getExtrasOpts()
+        );
+        optionPages.add(page);
+
+        page = new OptionPage(
                 Component.translatable("obsidian.options.pages.other").getString(),
                 Options.getOtherOpts()
         );
@@ -160,6 +166,24 @@ public abstract class Options {
                                     minecraft.invalidateSurfaceConfiguration();
                                 },
                                 () -> mcOptions.enableVsync().get()),
+                        new CyclingOption<>(Component.translatable("obsidian.options.presentMode"),
+                                new Integer[]{0, 1, 2, 3},
+                                value -> {
+                                    config.presentMode = value;
+                                    boolean vsyncOn = value == 3;
+                                    mcOptions.enableVsync().set(vsyncOn);
+                                    Vulkan.setVsync(vsyncOn);
+                                    Renderer.scheduleSwapChainUpdate();
+                                    minecraft.invalidateSurfaceConfiguration();
+                                },
+                                () -> config.presentMode)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "obsidian.options.presentMode.mailbox";
+                                    case 2 -> "obsidian.options.presentMode.adaptive";
+                                    case 3 -> "obsidian.options.presentMode.vsync";
+                                    default -> "obsidian.options.presentMode.immediate";
+                                }))
+                                .setTooltip(v -> Component.translatable("obsidian.options.presentMode.tooltip")),
                         new CyclingOption<>(Component.translatable("options.inactivityFpsLimit"),
                                             InactivityFpsLimit.values(),
                                             value -> mcOptions.inactivityFpsLimit().set(value),
@@ -514,6 +538,88 @@ public abstract class Options {
                                 .setTooltip(v -> Component.literal(
                                 Component.translatable("obsidian.options.deviceSelector.tooltip").getString() + ": " +
                                         DeviceManager.device.deviceName))
+                })
+        };
+    }
+
+    public static OptionBlock[] getExtrasOpts() {
+        return new OptionBlock[]{
+                new OptionBlock("", new Option<?>[]{
+                        new CyclingOption<>(Component.translatable("obsidian.options.hudMode"),
+                                new Integer[]{0, 1, 2},
+                                value -> config.hudMode = value,
+                                () -> config.hudMode)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "obsidian.options.hudMode.fps";
+                                    case 2 -> "obsidian.options.hudMode.detailed";
+                                    default -> "options.off";
+                                }))
+                                .setTooltip(v -> Component.translatable("obsidian.options.hudMode.tooltip")),
+                        new CyclingOption<>(Component.translatable("obsidian.options.hudPosition"),
+                                new Integer[]{0, 1, 2, 3},
+                                value -> config.hudPosition = value,
+                                () -> config.hudPosition)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "obsidian.options.hudPosition.topRight";
+                                    case 2 -> "obsidian.options.hudPosition.bottomLeft";
+                                    case 3 -> "obsidian.options.hudPosition.bottomRight";
+                                    default -> "obsidian.options.hudPosition.topLeft";
+                                })),
+                        new CyclingOption<>(Component.translatable("obsidian.options.hudStyle"),
+                                new Integer[]{0, 1, 2},
+                                value -> config.hudStyle = value,
+                                () -> config.hudStyle)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "obsidian.options.hudStyle.minimal";
+                                    case 2 -> "obsidian.options.hudStyle.pill";
+                                    default -> "obsidian.options.hudStyle.card";
+                                })),
+                        new CyclingOption<>(Component.translatable("obsidian.options.hudScale"),
+                                new Integer[]{75, 100, 125},
+                                value -> config.hudScale = value,
+                                () -> config.hudScale)
+                                .setTranslator(v -> Component.literal(v + "%")),
+                        new SwitchOption(Component.translatable("obsidian.options.hudShowCoords"),
+                                v -> config.hudShowCoords = v,
+                                () -> config.hudShowCoords),
+                        new SwitchOption(Component.translatable("obsidian.options.hudShowPing"),
+                                v -> config.hudShowPing = v,
+                                () -> config.hudShowPing),
+                        new SwitchOption(Component.translatable("obsidian.options.hudShowGraph"),
+                                v -> config.hudShowGraph = v,
+                                () -> config.hudShowGraph)
+                }),
+                new OptionBlock("", new Option<?>[]{
+                        new SwitchOption(Component.translatable("obsidian.options.environmentalFog"),
+                                v -> config.environmentalFog = v,
+                                () -> config.environmentalFog)
+                                .setTooltip(v -> Component.translatable("obsidian.options.environmentalFog.tooltip")),
+                        new CyclingOption<>(Component.translatable("obsidian.options.skyRenderMode"),
+                                new Integer[]{0, 1, 2},
+                                value -> config.skyRenderMode = value,
+                                () -> config.skyRenderMode)
+                                .setTranslator(v -> Component.translatable(switch (v) {
+                                    case 1 -> "obsidian.options.skyRenderMode.noStars";
+                                    case 2 -> "options.off";
+                                    default -> "options.on";
+                                }))
+                                .setTooltip(v -> Component.translatable("obsidian.options.skyRenderMode.tooltip"))
+                }),
+                new OptionBlock("", new Option<?>[]{
+                        new SwitchOption(Component.translatable("obsidian.options.particleCulling"),
+                                v -> config.particleCulling = v,
+                                () -> config.particleCulling)
+                                .setTooltip(v -> Component.translatable("obsidian.options.particleCulling.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM),
+                        new RangeOption(Component.translatable("obsidian.options.maxParticleDistance"),
+                                8, 64, 4,
+                                value -> config.maxParticleDistance = value,
+                                () -> config.maxParticleDistance)
+                                .setTranslator(v -> v >= 64
+                                        ? Component.translatable("obsidian.options.maxParticleDistance.unlimited")
+                                        : Component.literal(v + " blocks"))
+                                .setTooltip(v -> Component.translatable("obsidian.options.maxParticleDistance.tooltip"))
+                                .setImpact(PerformanceImpact.MEDIUM)
                 })
         };
     }

@@ -6,11 +6,13 @@ import com.mojang.renderpearl.api.buffers.TransientMemory;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
 public class VkTransientMemory implements TransientMemory {
     private static final long DEFAULT_BLOCK_SIZE = 4L * 1024L * 1024L;
+    private static final int MAX_POOLED_BLOCKS = 8;
     private static final int ALL_TRANSIENT_USAGE =
             GpuBuffer.USAGE_MAP_WRITE
             | GpuBuffer.USAGE_COPY_SRC
@@ -25,6 +27,8 @@ public class VkTransientMemory implements TransientMemory {
     private final List<GpuBlock> gpuBlocks = new ArrayList<>();
     private final List<CpuBlock> retiredCpuBlocks = new ArrayList<>();
     private final List<GpuBlock> retiredGpuBlocks = new ArrayList<>();
+    private final ArrayDeque<CpuBlock> freeCpuBlocks = new ArrayDeque<>();
+    private final ArrayDeque<GpuBlock> freeGpuBlocks = new ArrayDeque<>();
     private int currentFrame = 0;
 
     private static final class CpuBlock {
@@ -65,7 +69,12 @@ public class VkTransientMemory implements TransientMemory {
         this.cpuBlocks.clear();
         this.retiredCpuBlocks.removeIf(b -> {
             if (b.frame == frame) {
-                b.free();
+                if (b.capacity == DEFAULT_BLOCK_SIZE && this.freeCpuBlocks.size() < MAX_POOLED_BLOCKS) {
+                    b.used = 0L;
+                    this.freeCpuBlocks.addLast(b);
+                } else {
+                    b.free();
+                }
                 return true;
             }
             return false;
@@ -77,7 +86,12 @@ public class VkTransientMemory implements TransientMemory {
         this.gpuBlocks.clear();
         this.retiredGpuBlocks.removeIf(b -> {
             if (b.frame == frame) {
-                b.buffer.close();
+                if (b.capacity == DEFAULT_BLOCK_SIZE && this.freeGpuBlocks.size() < MAX_POOLED_BLOCKS) {
+                    b.used = 0L;
+                    this.freeGpuBlocks.addLast(b);
+                } else {
+                    b.buffer.close();
+                }
                 return true;
             }
             return false;
@@ -87,12 +101,16 @@ public class VkTransientMemory implements TransientMemory {
     public void close() {
         for (CpuBlock b : this.cpuBlocks) b.free();
         for (CpuBlock b : this.retiredCpuBlocks) b.free();
+        for (CpuBlock b : this.freeCpuBlocks) b.free();
         for (GpuBlock b : this.gpuBlocks) b.buffer.close();
         for (GpuBlock b : this.retiredGpuBlocks) b.buffer.close();
+        for (GpuBlock b : this.freeGpuBlocks) b.buffer.close();
         this.cpuBlocks.clear();
         this.retiredCpuBlocks.clear();
+        this.freeCpuBlocks.clear();
         this.gpuBlocks.clear();
         this.retiredGpuBlocks.clear();
+        this.freeGpuBlocks.clear();
     }
 
     private static long alignUp(long value, long alignment) {
@@ -116,8 +134,14 @@ public class VkTransientMemory implements TransientMemory {
         }
 
         if (target == null) {
-            long cap = Math.max(DEFAULT_BLOCK_SIZE, alignUp(size, effectiveAlign));
-            target = new CpuBlock(cap, this.currentFrame);
+            if (size <= DEFAULT_BLOCK_SIZE && !this.freeCpuBlocks.isEmpty()) {
+                target = this.freeCpuBlocks.removeFirst();
+                target.frame = this.currentFrame;
+                target.used = 0L;
+            } else {
+                long cap = Math.max(DEFAULT_BLOCK_SIZE, alignUp(size, effectiveAlign));
+                target = new CpuBlock(cap, this.currentFrame);
+            }
             this.cpuBlocks.add(target);
             startOffset = 0L;
         }
@@ -144,8 +168,14 @@ public class VkTransientMemory implements TransientMemory {
         }
 
         if (target == null) {
-            long cap = Math.max(DEFAULT_BLOCK_SIZE, alignUp(size, effectiveAlign));
-            target = new GpuBlock(VkGpuDevice.getInstance().debugLabels(), cap, this.currentFrame);
+            if (size <= DEFAULT_BLOCK_SIZE && !this.freeGpuBlocks.isEmpty()) {
+                target = this.freeGpuBlocks.removeFirst();
+                target.frame = this.currentFrame;
+                target.used = 0L;
+            } else {
+                long cap = Math.max(DEFAULT_BLOCK_SIZE, alignUp(size, effectiveAlign));
+                target = new GpuBlock(VkGpuDevice.getInstance().debugLabels(), cap, this.currentFrame);
+            }
             this.gpuBlocks.add(target);
             startOffset = 0L;
         }

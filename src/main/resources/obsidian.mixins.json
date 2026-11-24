@@ -13,7 +13,6 @@
 
     "chunk.ClientPacketListenerM",
     "chunk.ClientChunkCacheM",
-    "chunk.DirectionMixin",
     "chunk.FrustumMixin",
     "chunk.LevelExtractorMixin",
     "chunk.LevelRendererMixin",
@@ -46,6 +45,7 @@
     "render.PreferredGraphicsApiM",
     "render.RenderSetupAccessor",
     "render.RenderTypeM",
+    "render.SkyRendererMixin",
     "render.biome.BiomeManagerM",
     "render.block.BakedQuadM",
     "render.color.BlockColorsM",

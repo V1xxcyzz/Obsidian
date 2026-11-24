@@ -4,6 +4,7 @@
   "obsidian.options.pages.video": "General",
   "obsidian.options.pages.graphics": "Quality",
   "obsidian.options.pages.optimizations": "Performance",
+  "obsidian.options.pages.extras": "Extras",
   "obsidian.options.pages.other": "Advanced",
 
   "obsidian.options.performanceImpact": "Performance impact: %s",
@@ -75,6 +76,39 @@
   "obsidian.options.hudMode.tooltip": "Displays a lightweight corner overlay with FPS, VRAM usage, and visible chunk count without opening F3.",
   "obsidian.options.persistentPipelineCache": "Persistent Pipeline Cache",
   "obsidian.options.persistentPipelineCache.tooltip": "Saves compiled Vulkan graphics pipelines to disk to reduce shader hitching on subsequent launches.",
+
+  "obsidian.options.presentMode": "Present Mode",
+  "obsidian.options.presentMode.immediate": "Immediate (Uncapped)",
+  "obsidian.options.presentMode.mailbox": "FastSync (Mailbox)",
+  "obsidian.options.presentMode.adaptive": "Adaptive VSync",
+  "obsidian.options.presentMode.vsync": "VSync (FIFO)",
+  "obsidian.options.presentMode.tooltip": "Controls swapchain presentation. Immediate gives lowest latency; Mailbox gives tear-free uncapped FPS on supported drivers.",
+
+  "obsidian.options.hudPosition": "HUD Position",
+  "obsidian.options.hudPosition.topLeft": "Top-Left",
+  "obsidian.options.hudPosition.topRight": "Top-Right",
+  "obsidian.options.hudPosition.bottomLeft": "Bottom-Left",
+  "obsidian.options.hudPosition.bottomRight": "Bottom-Right",
+  "obsidian.options.hudStyle": "HUD Style",
+  "obsidian.options.hudStyle.card": "Obsidian Card",
+  "obsidian.options.hudStyle.minimal": "Minimal Shadow",
+  "obsidian.options.hudStyle.pill": "Compact Pill",
+  "obsidian.options.hudScale": "HUD Scale",
+  "obsidian.options.hudShowCoords": "Show Coordinates",
+  "obsidian.options.hudShowPing": "Show Ping",
+  "obsidian.options.hudShowGraph": "Show Frametime Graph",
+
+  "obsidian.options.environmentalFog": "Environmental Fog",
+  "obsidian.options.environmentalFog.tooltip": "Disables distant atmospheric fog while preserving blindness, darkness, lava, water, and powder-snow fog.",
+  "obsidian.options.skyRenderMode": "Render Sky & Stars",
+  "obsidian.options.skyRenderMode.noStars": "Sky Only (No Stars)",
+  "obsidian.options.skyRenderMode.tooltip": "Controls skybox and star rendering to save vertex/fragment work.",
+
+  "obsidian.options.particleCulling": "Particle Culling",
+  "obsidian.options.particleCulling.tooltip": "Culls particles outside the view frustum and hidden chunk sections.",
+  "obsidian.options.maxParticleDistance": "Max Particle Distance",
+  "obsidian.options.maxParticleDistance.unlimited": "Unlimited",
+  "obsidian.options.maxParticleDistance.tooltip": "Maximum distance from camera to render particles.",
 
   "obsidian.options.searchFieldPlaceholder": "Search Settings..."
 }

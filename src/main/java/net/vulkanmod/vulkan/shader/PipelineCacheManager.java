@@ -29,7 +29,7 @@ import static org.lwjgl.vulkan.VK10.*;
  */
 public final class PipelineCacheManager {
     private static final int MAGIC = 0x4F425043; // "OBPC"
-    private static final int FORMAT_VERSION = 1;
+    private static final int FORMAT_VERSION = 2;
     private static final int HEADER_SIZE = (5 * Integer.BYTES) + VK_UUID_SIZE;
     private static final String CACHE_FILE_NAME = "obsidian_pipeline_cache.bin";
 

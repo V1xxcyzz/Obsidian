@@ -248,7 +248,18 @@ public class SwapChain extends Framebuffer {
     }
 
     private int getPresentMode(IntBuffer availablePresentModes) {
-        int requestedMode = vsync ? VK_PRESENT_MODE_FIFO_KHR : defUncappedMode;
+        int requestedMode;
+        if (vsync) {
+            requestedMode = VK_PRESENT_MODE_FIFO_KHR;
+        } else {
+            int cfgMode = Initializer.CONFIG != null ? Initializer.CONFIG.presentMode : 0;
+            requestedMode = switch (cfgMode) {
+                case 1 -> VK_PRESENT_MODE_MAILBOX_KHR;
+                case 2 -> VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+                case 3 -> VK_PRESENT_MODE_FIFO_KHR;
+                default -> defUncappedMode;
+            };
+        }
 
         // FIFO mode is the only mode that has to be supported
         if (requestedMode == VK_PRESENT_MODE_FIFO_KHR)
