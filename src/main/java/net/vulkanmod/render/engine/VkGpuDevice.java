@@ -209,7 +209,7 @@ public class VkGpuDevice implements GpuDeviceBackend {
             throw new IllegalArgumentException("Buffer source must not be empty");
         }
         VkGpuBuffer buffer = new VkGpuBuffer(this.debugLabels, label, usage, data.remaining());
-        this.encoder.writeToBuffer(buffer.slice(), data);
+        this.encoder.writeToBufferInternal(buffer.slice(), data);
         return buffer;
     }
 

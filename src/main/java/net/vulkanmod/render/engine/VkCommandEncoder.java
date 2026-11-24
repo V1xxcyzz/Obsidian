@@ -396,20 +396,52 @@ public class VkCommandEncoder implements CommandEncoderBackend {
         if (this.inRenderPass) {
             throw new IllegalStateException("Close the existing render pass before performing additional commands");
         }
+        this.writeToBufferInternal(gpuBufferSlice, byteBuffer);
+    }
+
+    /**
+     * Uploads initial or explicit buffer contents via direct mapped memory when host-visible,
+     * or via the separate transfer command buffer so {@link VkGpuDevice#createBuffer} can run mid-pass.
+     */
+    void writeToBufferInternal(GpuBufferSlice gpuBufferSlice, ByteBuffer byteBuffer) {
         VkGpuBuffer vkGpuBuffer = (VkGpuBuffer) gpuBufferSlice.buffer();
         if (vkGpuBuffer.closed) {
             throw new IllegalStateException("Buffer already closed");
         }
 
         int size = byteBuffer.remaining();
+        if (size == 0) {
+            return;
+        }
+
         long dstOffset = gpuBufferSlice.offset();
         long dstId = vkGpuBuffer.buffer.getId();
+        long dstPtr = vkGpuBuffer.buffer.getDataPtr();
+
+        if (dstPtr != 0L && !this.dirtyTransferBuffers.contains(dstId)) {
+            if (byteBuffer.isDirect()) {
+                MemoryUtil.memCopy(MemoryUtil.memAddress(byteBuffer), dstPtr + dstOffset, size);
+            } else {
+                MemoryUtil.memByteBuffer(dstPtr + dstOffset, size).put(byteBuffer.slice());
+            }
+            return;
+        }
 
         var commandBuffer = Renderer.getInstance().getTransferCb();
         trackTransferCb(commandBuffer);
 
         StagingBuffer stagingBuffer = Vulkan.getStagingBuffer();
-        stagingBuffer.copyBuffer(size, byteBuffer);
+        if (byteBuffer.isDirect()) {
+            stagingBuffer.copyBuffer(size, byteBuffer);
+        } else {
+            ByteBuffer direct = MemoryUtil.memAlloc(size);
+            try {
+                direct.put(byteBuffer.slice()).flip();
+                stagingBuffer.copyBuffer(size, direct);
+            } finally {
+                MemoryUtil.memFree(direct);
+            }
+        }
         long srcOffset = stagingBuffer.getOffset();
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
