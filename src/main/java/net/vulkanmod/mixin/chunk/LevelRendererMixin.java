@@ -19,11 +19,13 @@ import net.minecraft.client.renderer.chunk.ChunkSectionsToRender;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.client.renderer.state.level.ChunkLoadingRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.resources.model.ModelManager;
 import net.minecraft.client.resources.model.sprite.AtlasManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.vulkanmod.render.chunk.WorldRenderer;
 import net.vulkanmod.render.profiling.Profiler;
 import net.vulkanmod.render.vertex.TerrainRenderType;
@@ -45,8 +47,11 @@ public abstract class LevelRendererMixin {
     @Shadow @Final private LevelRenderState levelRenderState;
     @Shadow @Final private FeatureRenderDispatcher featureRenderDispatcher;
     @Shadow @Final private SubmitNodeStorage submitNodeStorage;
+    @Shadow @Final private WorldBorderRenderer worldBorderRenderer;
+    @Shadow private ViewArea viewArea;
 
     @Unique private WorldRenderer worldRenderer;
+    @Unique private long lastCameraSection = Long.MIN_VALUE;
 
     @Unique double camX, camY, camZ;
     @Unique Matrix4f modelView, projection;
@@ -61,6 +66,25 @@ public abstract class LevelRendererMixin {
     @Inject(method = "invalidateCompiledGeometry", at = @At("HEAD"), cancellable = true)
     private void skipInvalidateCompiledGeometry(ClientLevel clientLevel, Options options, Camera camera, BlockColors blockColors, CallbackInfo ci) {
         ci.cancel();
+    }
+
+    @Inject(method = "repositionCamera", at = @At("HEAD"), cancellable = true)
+    private void onRepositionCamera(CameraRenderState cameraRenderState, CallbackInfo ci) {
+        if (this.viewArea == null) {
+            long section = SectionPos.of(cameraRenderState.pos).asLong();
+            if (section != this.lastCameraSection) {
+                this.lastCameraSection = section;
+                this.worldBorderRenderer.invalidate();
+            }
+            ci.cancel();
+        }
+    }
+
+    @Redirect(method = "render",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/SectionOcclusionGraph;update(Lnet/minecraft/client/renderer/state/level/CameraRenderState;ILnet/minecraft/client/renderer/state/level/ChunkLoadingRenderState;)V"))
+    private void skipSectionOcclusionGraphUpdate(SectionOcclusionGraph instance, CameraRenderState cameraRenderState,
+                                                 int fov, ChunkLoadingRenderState chunkLoadingRenderState) {
     }
 
     @Inject(method = "submitBlockEntities", at = @At("RETURN"))

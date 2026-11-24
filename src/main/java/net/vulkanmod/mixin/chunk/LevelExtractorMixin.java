@@ -4,6 +4,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.extract.LevelExtractor;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.vulkanmod.render.chunk.WorldRenderer;
@@ -32,11 +33,22 @@ public class LevelExtractorMixin {
 
     @Inject(method = "allChanged", at = @At("HEAD"), cancellable = true)
     private void onAllChanged(CallbackInfo ci) {
+        if (this.level != null) {
+            this.level.clearTintCaches();
+        }
         this.lastViewDistance = this.minecraft.options.getEffectiveRenderDistance();
         if (WorldRenderer.getInstance() != null && WorldRenderer.getLevel() == this.level) {
             WorldRenderer.getInstance().allChanged();
         }
         ci.cancel();
+    }
+
+    /**
+     * @author Obsidian
+     * @reason Frustum culling and section visibility are handled by Obsidian's WorldRenderer
+     */
+    @Overwrite
+    private void applyFrustum(Frustum frustum) {
     }
 
     @Inject(method = "extract", at = @At("HEAD"))
