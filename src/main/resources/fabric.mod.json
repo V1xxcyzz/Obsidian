@@ -9,8 +9,7 @@
   "name": "Obsidian",
   "description": "A faster, smoother fork of VulkanMod with Sodium-style optimizations and a cleaner Video Settings menu.",
   "authors": [
-    "Obsidian Contributors",
-    "Collateral (VulkanMod)"
+    "ImV"
   ],
   "contact": {
     "homepage": "",

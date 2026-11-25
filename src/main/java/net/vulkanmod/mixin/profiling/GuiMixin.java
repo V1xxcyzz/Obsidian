@@ -27,12 +27,12 @@ public class GuiMixin {
         ProfilerOverlay.createInstance(minecraft);
     }
 
-    @Inject(method = "extractRenderState", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;applyCursor(Lcom/mojang/blaze3d/platform/Window;)V"))
+    @Inject(method = "extractRenderState", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Hud;extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V", shift = At.Shift.AFTER))
     private void renderProfilerOverlay(DeltaTracker deltaTracker, boolean hudVisible, boolean screenVisible, CallbackInfo ci, @Local GuiGraphicsExtractor guiGraphics) {
         if (!this.minecraft.getDebugOverlay().showDebugScreen()) {
             if (ProfilerOverlay.shouldRender) {
                 ProfilerOverlay.INSTANCE.render(guiGraphics);
-            } else if (HudOverlay.shouldRender()) {
+            } else if (HudOverlay.shouldRender() && hudVisible && !screenVisible && this.minecraft.level != null) {
                 HudOverlay.render(guiGraphics, Initializer.CONFIG.hudMode);
             }
         }
